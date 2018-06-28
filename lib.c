@@ -6,11 +6,13 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include "bcache.h"
+#include "lib.h"
 #include <uuid/uuid.h>
 #include <string.h>
 
 int list_bdevs(char devs[][50]){
 //	char devs[10][20]; //TODO:prevent memory leak,for now you show set the size large enough.
+//	maybe we can use linked list
 	printf("hello\n");
 	int i = 0;
 	DIR *dir;
@@ -26,7 +28,7 @@ int list_bdevs(char devs[][50]){
 	    }
             char dev[20];
     	    sprintf(dev,"/dev/%s",ptr->d_name);
-		printf("%s\n",dev);
+	//	printf("%s\n",dev);
 //	    char dev[20] = "/dev/";
 //		strcat(dev,ptr->d_name);
 	        int fd = open(dev, O_RDONLY);
@@ -51,8 +53,8 @@ int list_bdevs(char devs[][50]){
 
                 uuid_unparse(sb.uuid, uuid);
                 uuid_unparse(sb.set_uuid, set_uuid);
-                printf(" UUID=%s DEV=%s  SET_UUID=%s\n", uuid,dev,set_uuid);
-		printf("i is %d",i);
+//                printf(" UUID=%s DEV=%s  SET_UUID=%s\n", uuid,dev,set_uuid);
+//		printf("i is %d",i);
 		strcpy(devs[i],dev);
 	//	devs[i]=dev;
 		i++;
@@ -63,6 +65,178 @@ int list_bdevs(char devs[][50]){
 	strcpy(devs[i],"\0");
 	closedir(dir);
 	return 0;
+}
+
+/*
+struct dev{
+    char *magic;
+    uint64_t first_sector;
+    uint64_t csum;
+    int version;
+    char label[SB_LABEL_SIZE + 1];
+    char uuid[32];
+    int sectors_per_block;
+    int sectors_per_bucket;
+    char cset[32];
+};
+
+struct bdev{
+    struct dev base;
+    int first_sector;
+    int cache_mode;
+    int cache_state;
+};
+
+//typedef int bool;
+struct cdev{
+    struct dev base;
+    int first_sector;
+    int cache_sectors;
+    int total_sectors;
+    bool ordered;
+    bool discard;
+    int pos;
+    int replacement; 
+};
+*/
+
+int detail_bdev(char *devname,struct bdev *bd){
+//TODU: merge the detail_bdev and detail_cdev function
+	printf("enter detail");
+        struct cache_sb sb;
+	uint64_t expected_csum;
+        int fd = open(devname, O_RDONLY);
+        if (fd < 0) {
+                printf("Can't open dev %s\n", devname);
+                return 1;
+        }
+
+        if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb)) {
+                fprintf(stderr, "Couldn't read\n");
+                return 1;
+        }
+	
+	if (!memcmp(sb.magic, bcache_magic, 16)) {
+                bd->base.magic="ok";
+        } else {
+		bd->base.magic="bad magic";
+                return 1;
+        }
+
+	if (sb.offset == SB_SECTOR) {
+		bd->base.first_sector=SB_SECTOR;
+        } else {
+                fprintf(stderr, "Invalid superblock (bad sector)\n");
+                return 1;
+        }
+	
+	expected_csum = csum_set(&sb);
+        if (sb.csum == expected_csum) {
+		bd->base.csum = sb.csum;
+        } else {
+                return 1;
+        }	
+
+	bd->base.version=sb.version;
+	
+        strncpy(bd->base.label,(char*)sb.label,SB_LABEL_SIZE);
+	bd->base.label[SB_LABEL_SIZE] = '\0';
+	if (*bd->base.label)
+	    printf("a");
+	else
+	    strncpy(bd->base.label,"(empty)",7);
+
+	uuid_unparse(sb.uuid, bd->base.uuid);
+
+	bd->base.sectors_per_block = sb.block_size;
+	bd->base.sectors_per_bucket = sb.bucket_size;
+        return 0;	
+}
+
+int detail_base(struct cache_sb sb,struct dev *base){
+//TODU: should we add static to return value?
+	uint64_t expected_csum;
+	base->magic="ok";
+	base->first_sector=SB_SECTOR;
+	base->csum = sb.csum;
+	base->version=sb.version;
+	
+        strncpy(base->label,(char*)sb.label,SB_LABEL_SIZE);
+	base->label[SB_LABEL_SIZE] = '\0';
+	if (*base->label)
+	    printf("a");
+	else
+	    strncpy(base->label,"(empty)",sizeof(base->label));
+
+	uuid_unparse(sb.uuid,base->uuid);
+	uuid_unparse(sb.set_uuid, base->cset);
+	printf("uuid is %s,and set uuid is %s",base->uuid,base->cset);
+	printf("\n size of is %d %d",sizeof(base->uuid),sizeof(sb.uuid));
+	base->sectors_per_block = sb.block_size;
+	base->sectors_per_bucket = sb.bucket_size;
+
+        return 0;	
+}
+
+int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
+//TODU: merge the detail_bdev and detail_cdev function
+        struct cache_sb sb;
+	uint64_t expected_csum;
+        int fd = open(devname, O_RDONLY);
+        if (fd < 0) {
+                printf("Can't open dev %s\n", devname);
+                return 1;
+        }
+
+        if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb)) {
+                fprintf(stderr, "Couldn't read\n");
+                return 1;
+        }
+	
+	if (!memcmp(sb.magic, bcache_magic, 16)) {
+		printf("ok");
+              //  bd->base.magic="ok";
+        } else {
+	//	bd->base.magic="bad magic";
+                return 1;
+        }
+
+	if (sb.offset == SB_SECTOR) {
+		printf("ok");
+//		bd->base.first_sector=SB_SECTOR;
+        } else {
+                fprintf(stderr, "Invalid superblock (bad sector)\n");
+                return 1;
+        }
+	
+	expected_csum = csum_set(&sb);
+        if (sb.csum == expected_csum) {
+		printf("ok\n");
+//		bd->base.csum = sb.csum;
+        } else {
+                return 1;
+        }	
+
+	*type = sb.version;
+	if (sb.version == BCACHE_SB_VERSION_BDEV) {
+		detail_base(sb,&bd->base);
+		bd->first_sector=BDEV_DATA_START_DEFAULT;
+		bd->cache_mode=BDEV_CACHE_MODE(&sb);
+		bd->cache_state=BDEV_STATE(&sb);
+	}else if (sb.version == BCACHE_SB_VERSION_CDEV || sb.version == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
+		detail_base(sb,&cd->base);
+		cd->first_sector=sb.bucket_size * sb.first_bucket;
+		cd->cache_sectors=sb.bucket_size * (sb.nbuckets - sb.first_bucket);
+		cd->total_sectors=sb.bucket_size * sb.nbuckets;
+		cd->ordered=CACHE_SYNC(&sb);
+		cd->discard=CACHE_DISCARD(&sb);
+		cd->pos=sb.nr_this_dev;
+		cd->replacement=CACHE_REPLACEMENT(&sb);
+	}else {
+		fprintf(stderr,"unknown bcache device type found");
+		return 1;
+	}	
+        return 0;	
 }
 
 int registe(char *devname){
@@ -89,25 +263,34 @@ int unregiste_cset(char *cset){
     int fd;
     char path[100];
     sprintf(path,"/sys/fs/bcache/%s/unregister",cset);
+    printf("path is %s",path);
     fd = open(path, O_WRONLY);
     if (fd < 0)
     {
         fprintf(stderr, "The bcache kernel module must be loaded\n");
         return 1;
     }
-    if (dprintf(fd, "%s\n", cset) < 0)
+    if (dprintf(fd, "%d\n", 1) < 0)
     {
-        fprintf(stderr, "Error registering %s with bcache: %m\n", cset);
         return 1;
     }
 
     return 0;
 }
 
+void trim_prefix(char *dest,char *src){
+	//TODU:we should not trim prefix using number;
+	printf("src is %s,and dest is %s",src,dest);
+	strcpy(dest,src+5);	
+	printf("src is %s,and dest is %s",src,dest);
+}
+
 int stop_backdev(char *devname){
     char path[100];
     int fd;
-    sprintf(path,"/sys/block/%s/bcache/stop",devname);
+    char buf[20];
+    trim_prefix(buf,devname);
+    sprintf(path,"/sys/block/%s/bcache/stop",buf);
     fd = open(path,O_WRONLY);
     if (fd < 0)
     {
@@ -141,8 +324,10 @@ int unregiste_both(char *cset){
 
 int attach(char *cset,char *devname){
     int fd;
+    char buf[20];
+    trim_prefix(buf,devname);
     char path[100];
-    sprintf(path,"/sys/block/%s/bcache/attach",devname);
+    sprintf(path,"/sys/block/%s/bcache/attach",buf);
     fd = open(path,O_WRONLY);
     if (fd < 0)
     {
@@ -159,8 +344,10 @@ int attach(char *cset,char *devname){
 
 int detach(char *devname){
     int fd;
+    char buf[20];
+    trim_prefix(buf,devname);
     char path[100];
-    sprintf(path,"/sys/block/%s/bcache/detach",devname);
+    sprintf(path,"/sys/block/%s/bcache/detach",buf);
     fd = open(path,O_WRONLY);
     if (fd < 0)
     {
@@ -230,6 +417,7 @@ int get_backdev_state(char *devname,char *state){
     return 0;
 }
 
+/*
 int main(){
 //	list_bcacheset();
 	//unregiste_cset("112edd51-a548-4945-b0eb-3df948e90fda");
@@ -241,7 +429,7 @@ int main(){
 	//char mode[42];
 	//rt = get_backdev_state("sdh",mode);
 
-/*listdevstest
+listdevstest
 	char a[500][50];	
 	list_bdevs(a);
 
@@ -258,5 +446,11 @@ int main(){
 	}
 	printf("%d %s \n",i,a[i]);
 }
-*/
+
+	struct bdev back;
+	printf("init is %d\n",back.first_sector);
+	int rt;
+        rt = detail_bdev("/dev/sdh",&back);
+	printf("result code is %d,back is %d\n,base is %d\n",rt,(&back)->first_sector,(&back)->base.first_sector);
 }
+*/
