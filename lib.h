@@ -1,4 +1,5 @@
 struct dev{
+    char name[20];
     char *magic;
     uint64_t first_sector;
     uint64_t csum;
@@ -8,6 +9,7 @@ struct dev{
     int sectors_per_block;
     int sectors_per_bucket;
     char cset[40];
+    struct dev *next;
 };
 
 struct bdev{
@@ -30,10 +32,13 @@ struct cdev{
 };
 
 
-int list_bdevs(char devs[][50]);
+int list_bdevs(struct dev **);
 int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type);
 int registe(char *devname);
 int stop_backdev(char *devname);
 int unregiste_cset(char *cset);
 int attach(char *cset,char *devname);
 int detach(char *devname);
+
+
+#define DEVLEN sizeof(struct dev)

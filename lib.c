@@ -9,7 +9,9 @@
 #include "lib.h"
 #include <uuid/uuid.h>
 #include <string.h>
+#include <malloc.h>
 
+/*
 int list_bdevs(char devs[][50]){
 //	char devs[10][20]; //TODO:prevent memory leak,for now you show set the size large enough.
 //	maybe we can use linked list
@@ -65,6 +67,80 @@ int list_bdevs(char devs[][50]){
 	strcpy(devs[i],"\0");
 	closedir(dir);
 	return 0;
+}
+*/
+
+int list_bdevs(struct dev **devs){
+	DIR *dir;
+	struct dirent *ptr;
+        blkid_probe pr;
+        struct cache_sb sb;
+	dir = opendir("/sys/block");
+	while((ptr = readdir(dir))!=NULL){
+	    if (strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0){
+		continue;
+	    }
+//	    if (strncmp(ptr->d_name,"bcache",5) == 0){
+//		printf("skip bcache");
+//		continue;
+//	    }
+            char dev[20];
+    	    sprintf(dev,"/dev/%s",ptr->d_name);
+//	    char dev[20] = "/dev/";
+//		strcat(dev,ptr->d_name);
+	        int fd = open(dev, O_RDONLY);
+                if (fd == -1)
+                        continue;
+		//printf("%s\n",dev);
+
+                if (!(pr = blkid_new_probe()))
+                        continue;
+                if (blkid_probe_set_device(pr, fd, 0, 0))
+                        continue;
+                if (blkid_probe_enable_partitions(pr, true))
+                        continue;
+                if (!blkid_do_probe(pr)) {
+                        continue;
+                }
+
+                if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb))
+                        continue;
+
+                if (memcmp(sb.magic, bcache_magic, 16))
+                        continue;
+		
+
+		struct dev *tmp,*current;
+		int rt;
+		if (*devs){
+//			printf("this is not first");
+			tmp = (struct dev *)malloc(DEVLEN);
+			strcpy(tmp->name,dev);
+			rt = detail_base(sb,tmp);
+			if (rt!= 0){
+				printf("error occur");
+				return 1;
+			}else{
+				current->next=tmp;
+				current = tmp;
+			}
+		}else{
+//			printf("this is first");
+			tmp = (struct dev *)malloc(DEVLEN);
+			strcpy(tmp->name,dev);
+			rt=detail_base(sb,tmp);
+			if (rt!=0){
+				printf("error occur");
+				return 1;
+			}
+			current = tmp;
+			*devs = tmp;
+		}
+	}
+	printf("leave while\n,uuid is %s\n",(*devs)->uuid);
+	closedir(dir);
+	return 0;
+
 }
 
 /*
@@ -170,8 +246,6 @@ int detail_base(struct cache_sb sb,struct dev *base){
 
 	uuid_unparse(sb.uuid,base->uuid);
 	uuid_unparse(sb.set_uuid, base->cset);
-	printf("uuid is %s,and set uuid is %s",base->uuid,base->cset);
-	printf("\n size of is %d %d",sizeof(base->uuid),sizeof(sb.uuid));
 	base->sectors_per_block = sb.block_size;
 	base->sectors_per_bucket = sb.bucket_size;
 
@@ -193,27 +267,17 @@ int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
                 return 1;
         }
 	
-	if (!memcmp(sb.magic, bcache_magic, 16)) {
-		printf("ok");
-              //  bd->base.magic="ok";
-        } else {
-	//	bd->base.magic="bad magic";
+	if (memcmp(sb.magic, bcache_magic, 16)) {
                 return 1;
         }
 
-	if (sb.offset == SB_SECTOR) {
-		printf("ok");
-//		bd->base.first_sector=SB_SECTOR;
-        } else {
+	if (!sb.offset == SB_SECTOR) {
                 fprintf(stderr, "Invalid superblock (bad sector)\n");
                 return 1;
         }
 	
 	expected_csum = csum_set(&sb);
-        if (sb.csum == expected_csum) {
-		printf("ok\n");
-//		bd->base.csum = sb.csum;
-        } else {
+        if (!sb.csum == expected_csum) {
                 return 1;
         }	
 
@@ -280,9 +344,7 @@ int unregiste_cset(char *cset){
 
 void trim_prefix(char *dest,char *src){
 	//TODU:we should not trim prefix using number;
-	printf("src is %s,and dest is %s",src,dest);
 	strcpy(dest,src+5);	
-	printf("src is %s,and dest is %s",src,dest);
 }
 
 int stop_backdev(char *devname){
@@ -400,21 +462,46 @@ int get_backdev_cachemode(char *devname,char *mode){
 }
 
 int get_backdev_state(char *devname,char *state){
-    int fd;
+    FILE* fd;
     char path[100];
-    sprintf(path,"/sys/block/%s/bcache/state",devname);
-    fd = open(path,O_RDONLY);
-    if (fd < 0)
+    char buf[20];
+    trim_prefix(buf,devname);
+    sprintf(path,"/sys/block/%s/bcache/state",buf);
+    fd = fopen(path,"r");
+    if (fd == NULL)
     {
-        fprintf(stderr, "The bcache kernel module must be loaded\n");
+	strcpy(state,"inactive");
 	return 1;
     }
-    if (read(fd,state,20) < 0)
-    {
-        fprintf(stderr, "failed to fetch device state\n");
-	return 1;
-    }
+	int i;
+	char buf1[100];
+        while((state[i]=getc(fd)) != '\n'){
+	//    printf("read num is %c \n",state[i]);
+	    i++;
+	}
+	state[i]='\0';
+//	num = fread(state,1,8,fd);
+//printf("strlen is %d",strlen(state));
+    fclose(fd);
     return 0;
+}
+
+int get_cachedev_state(char *devname,char *state){
+	struct bdev bd;
+	struct cdev cd;
+	int rt,fd,type;
+	rt = detail_dev(devname,&bd,&cd,&type);
+	char *cset_id = cd.base.cset;
+	char path[100];
+	sprintf(path,"/sys/fs/bcache/%s/unregister",cset_id);
+        fd = open(path,O_WRONLY);
+        if (fd < 0)
+        {
+	    strcpy(state,"inactive");
+        }else{
+	    strcpy(state,"active");
+	}
+            return 0;
 }
 
 /*

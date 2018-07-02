@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include "make-bcache.h"
 #include "bcache.h"
@@ -12,6 +13,7 @@ void myusage()
 	printf("error using bcache-mgr");
 }
 
+/*
 int show_bdevs(){
         char a[500][50];        
         list_bdevs(a);
@@ -27,6 +29,39 @@ int show_bdevs(){
                 break;
         }
         printf("%d %s \n",i,a[i]);
+	}
+	return 0;
+}
+*/
+
+int get_state(struct dev *dev,char *state){
+	if (dev->version == BCACHE_SB_VERSION_CDEV || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
+		return get_cachedev_state(dev->name,state); 	
+	}else if(dev->version == BCACHE_SB_VERSION_BDEV || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET ){
+		return get_backdev_state(dev->name,state);
+	}
+}
+
+int show_bdevs(){
+	struct dev *devs=NULL;
+	struct dev *tmp;
+	int rt;
+        rt =list_bdevs(&devs);
+	if (rt != 0){
+		printf("result is non-zero:%d",rt);
+		return rt;
+	}
+		
+	printf("name\t\tuuid\t\t\t\t\tcset_uuid\t\t\t\ttype\tstate\n");
+	while (devs) {
+		printf("%s\t%s\t%s\t%d",devs->name,devs->uuid,devs->cset,devs->version); 
+		char state[20];
+		get_state(devs,state);
+		printf("\t%s",state);
+		putchar('\n');
+		tmp = devs;
+		devs = devs->next;
+		free(tmp);
 	}
 	return 0;
 }
