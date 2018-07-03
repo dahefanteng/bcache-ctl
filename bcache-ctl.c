@@ -99,6 +99,16 @@ int get_point(struct dev *dev,char *point){
 	return 0;
 }
 
+
+int get_bname(struct dev *dev,char *bname){
+	if (dev->version == BCACHE_SB_VERSION_CDEV || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
+		strcpy(bname,"N/A");
+	}else if(dev->version == BCACHE_SB_VERSION_BDEV || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET ){
+		return get_dev_bname(dev->name,bname);
+	}
+	return 0;
+}
+
 int show_bdevs(){
 	struct dev *devs=NULL;
 	struct dev *tmp;
@@ -109,10 +119,29 @@ int show_bdevs(){
 		return rt;
 	}
 		
-	printf("name\t\tuuid\t\t\t\t\tcset_uuid\t\t\t\ttype\tstate\t\tattachto\n");
+	printf("name\t\tuuid\t\t\t\t\tcset_uuid\t\t\t\ttype\t\tstate\t\tattach\t\t\t\t\tbcachname\n");
 		char state[20];
 	while (devs) {
 		printf("%s\t%s\t%s\t%d",devs->name,devs->uuid,devs->cset,devs->version); 
+	        switch (devs->version) {
+                // These are handled the same by the kernel
+                case BCACHE_SB_VERSION_CDEV:
+                case BCACHE_SB_VERSION_CDEV_WITH_UUID:
+                        printf(" (cache)");
+                        break;
+
+                // The second adds data offset support
+                case BCACHE_SB_VERSION_BDEV:
+                case BCACHE_SB_VERSION_BDEV_WITH_OFFSET:
+                        printf(" (data)");
+                        break;
+
+                default:
+                        printf(" (unknown)");
+                        // exit code?
+                        return 0;
+        }
+
 		get_state(devs,state);
 		printf("\t%s",state);
 		if (strlen(state)%8 != 0){
@@ -120,8 +149,14 @@ int show_bdevs(){
 		}
 		char point[50];
 		get_point(devs,point);
-		printf("\t%s",point);
+		//TODU:adjust the distance between two lines
+		printf("\t%-36s",point);
+		
+		char bname[30];
+		get_bname(devs,bname);
+		printf("\t%s",bname);
 		putchar('\n');
+
 		tmp = devs;
 		devs = devs->next;
 		free(tmp);

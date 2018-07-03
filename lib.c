@@ -348,9 +348,22 @@ void trim_prefix(char *dest,char *src){
 void get_tail(char *dest,char *src,int n){
         int num,i;
         num = strlen(src);
-        for (i=0;i<num-n;i++){
+//	printf("\n string len is%d\n",num);
+        for (i=0;i<n;i++){
+//		printf("iiiii:%d,%c\n",i,src[num-n+i]);
                 dest[i]=src[num-n+i];
         }
+//	dest[i+1] = '\0';
+//	printf("\ni is %d, uuid:%s,len is %d",i,dest,strlen(dest));
+}
+
+void trim_tail(char *dest,char *src,int n){
+	int num,i;
+	num = strlen(src);
+	for (i=0;i<num-n-1;i++){
+		dest[i]=src[i];
+	}
+	dest[i] = '\0';
 }
 
 int stop_backdev(char *devname){
@@ -516,14 +529,36 @@ int get_backdev_attachpoint(char *devname,char *point){
     char buf[20];
     char link[100];
     char uuid[40];
+    char buf1[100];
     trim_prefix(buf,devname);
     sprintf(path,"/sys/block/%s/bcache/cache",buf);
     rt = readlink(path,link,sizeof(link));
     if (rt<0){
 	strcpy(point,"alone");
     }else{
-	get_tail(uuid,link,38);
+	trim_tail(buf1,link,1);
+	get_tail(uuid,buf1,36);
 	strcpy(point,uuid);
+    }
+    return 0;
+}
+
+
+int get_dev_bname(char *devname,char *bname){
+    int rt;
+    char path[100];
+    char buf[20];
+    char link[100];
+    char buf1[100];
+    trim_prefix(buf,devname);
+    sprintf(path,"/sys/block/%s/bcache/dev",buf);
+    rt = readlink(path,link,sizeof(link));
+    if (rt<0){
+	strcpy(bname,"non-exsit");
+    }else{
+	trim_tail(buf1,link,1);
+//	printf("bbg%s",buf);
+	strcpy(bname,buf1+41);
     }
     return 0;
 }
