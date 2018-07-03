@@ -8,9 +8,56 @@
 #include "bcache.h"
 #include "lib.h"
 
-void myusage()
+int  myusage()
 {
-	printf("error using bcache-mgr");
+	fprintf(stderr,
+		"Usage:bcache-ctl [SUBCMD]\n"
+		"	show		show all bcache devices in this host\n"
+		"	make-bcache	make regular device to bcache device\n"
+		"	registe 	registe device to kernel\n"
+		"	unregiste	unregiste device from kernel\n"
+		"	attach		attach backend device(data device) to cache device\n"
+		"	detach		detach backend device(data device) from cache device\n"
+		"	set-cachemode	set cachemode for backend device\n");
+	return EXIT_FAILURE;
+}
+
+int showusage(){
+	fprintf(stderr,
+	"Usage: show [option]"
+	"	show overall information about all devices\n"
+	"	detail		show the detail infomation about this device\n");
+	return EXIT_FAILURE;
+}
+
+int registeusage(){
+	fprintf(stderr,
+	"Usage:registe devicename	registe device as bcache device to kernel\n");
+	return EXIT_FAILURE;
+}
+
+int unregisteusage(){
+	fprintf(stderr,
+	"Usage:unregiste devicename	unregiste device from kernel\n");
+	return EXIT_FAILURE;
+}
+
+int attachusage(){
+	fprintf(stderr,
+	"Usage:attach cset_uuid devicename\n");
+	return EXIT_FAILURE;
+}
+
+int detachusage(){
+	fprintf(stderr,
+	"Usage:detach devicename\n");
+	return EXIT_FAILURE;
+}
+
+int setcachemodeusage(){
+	fprintf(stderr,
+	"Usage:set-cachemode devicename modetype\n");
+	return EXIT_FAILURE;
 }
 
 /*
@@ -42,6 +89,16 @@ int get_state(struct dev *dev,char *state){
 	}
 }
 
+
+int get_point(struct dev *dev,char *point){
+	if (dev->version == BCACHE_SB_VERSION_CDEV || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
+		strcpy(point,"N/A");
+	}else if(dev->version == BCACHE_SB_VERSION_BDEV || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET ){
+		return get_backdev_attachpoint(dev->name,point);
+	}
+	return 0;
+}
+
 int show_bdevs(){
 	struct dev *devs=NULL;
 	struct dev *tmp;
@@ -52,12 +109,18 @@ int show_bdevs(){
 		return rt;
 	}
 		
-	printf("name\t\tuuid\t\t\t\t\tcset_uuid\t\t\t\ttype\tstate\n");
+	printf("name\t\tuuid\t\t\t\t\tcset_uuid\t\t\t\ttype\tstate\t\tattachto\n");
+		char state[20];
 	while (devs) {
 		printf("%s\t%s\t%s\t%d",devs->name,devs->uuid,devs->cset,devs->version); 
-		char state[20];
 		get_state(devs,state);
 		printf("\t%s",state);
+		if (strlen(state)%8 != 0){
+			putchar('\t');
+		}
+		char point[50];
+		get_point(devs,point);
+		printf("\t%s",point);
 		putchar('\n');
 		tmp = devs;
 		devs = devs->next;
@@ -67,7 +130,6 @@ int show_bdevs(){
 }
 
 int detail(char *devname){
-	printf("enter detail");
 	struct bdev bd;
 	struct cdev cd;
 	int type =1;
@@ -98,7 +160,6 @@ int detail(char *devname){
 		putchar('\n');
 		printf("cset.uuid\t\t%s\n", bd.base.cset);
 	}else if (type ==BCACHE_SB_VERSION_CDEV || type == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-		printf("enter cache ok\n");
 		printf("that is %s",cd.base.uuid);
 		printf("sb.magic\t\t%s\n",cd.base.magic);
 		printf("sb.first_sector\t\t%" PRIu64 "\n", cd.base.first_sector);
@@ -163,17 +224,23 @@ int main(int argc, char **argv)
 		make_bcache(argc,argv);
 
 	} else if(strcmp(subcmd,"show")==0){
-		printf("enter show");
 		if (argc == 1){
 			return show_bdevs();
-		}else{
+		}else if (argc == 2){
 			detail(argv[1]);
+		}else{
+			return showusage();
 		}
 	} else if(strcmp(subcmd,"registe")==0){
-		printf("enter registe");
+		printf("registe %d",argc);
+		if (argc != 2){
+			return registeusage();
+		}
 		return registe(argv[1]);
 	} else if(strcmp(subcmd,"unregiste")==0){
-		printf("enter unregiste");
+		if (argc != 2){
+			return unregisteusage();
+		}
 		struct bdev bd;
 		struct cdev cd;
 		int type =1;
@@ -190,16 +257,23 @@ int main(int argc, char **argv)
 		}
 		return 1;
 	} else if(strcmp(subcmd,"attach")==0){
-		printf("enter attach");
+		if (argc != 3){
+			return attachusage();
+		}
 		return attach(argv[1],argv[2]);
 	} else if(strcmp(subcmd,"detach")==0){
-		printf("enter detach");
+		if (argc != 2){
+			return detachusage();
+		}
 		return detach(argv[1]);
+	}else if(strcmp(subcmd,"set-cachemode")==0){
+		if (argc != 3){
+			return setcachemodeusage();
+		}
+		return set_backdev_cachemode(argv[1],argv[2]);
 	}else{
-		printf("abc");
 		myusage();
 	}
-
 	return 0;
 }
 

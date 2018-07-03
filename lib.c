@@ -137,7 +137,6 @@ int list_bdevs(struct dev **devs){
 			*devs = tmp;
 		}
 	}
-	printf("leave while\n,uuid is %s\n",(*devs)->uuid);
 	closedir(dir);
 	return 0;
 
@@ -327,7 +326,6 @@ int unregiste_cset(char *cset){
     int fd;
     char path[100];
     sprintf(path,"/sys/fs/bcache/%s/unregister",cset);
-    printf("path is %s",path);
     fd = open(path, O_WRONLY);
     if (fd < 0)
     {
@@ -345,6 +343,14 @@ int unregiste_cset(char *cset){
 void trim_prefix(char *dest,char *src){
 	//TODU:we should not trim prefix using number;
 	strcpy(dest,src+5);	
+}
+
+void get_tail(char *dest,char *src,int n){
+        int num,i;
+        num = strlen(src);
+        for (i=0;i<num-n;i++){
+                dest[i]=src[num-n+i];
+        }
 }
 
 int stop_backdev(char *devname){
@@ -426,7 +432,9 @@ int detach(char *devname){
 int set_backdev_cachemode(char *devname,char *cachemode){
     int fd;
     char path[100];
-    sprintf(path,"/sys/block/%s/bcache/cache_mode",devname);
+    char buf[20];
+    trim_prefix(buf,devname);
+    sprintf(path,"/sys/block/%s/bcache/cache_mode",buf);
     fd = open(path,O_WRONLY);
     if (fd < 0)
     {
@@ -473,10 +481,8 @@ int get_backdev_state(char *devname,char *state){
 	strcpy(state,"inactive");
 	return 1;
     }
-	int i;
-	char buf1[100];
-        while((state[i]=getc(fd)) != '\n'){
-	//    printf("read num is %c \n",state[i]);
+	int i=0;
+        while((state[i]=getc(fd)) != '\n' ){
 	    i++;
 	}
 	state[i]='\0';
@@ -502,6 +508,24 @@ int get_cachedev_state(char *devname,char *state){
 	    strcpy(state,"active");
 	}
             return 0;
+}
+
+int get_backdev_attachpoint(char *devname,char *point){
+    int rt;
+    char path[100];
+    char buf[20];
+    char link[100];
+    char uuid[40];
+    trim_prefix(buf,devname);
+    sprintf(path,"/sys/block/%s/bcache/cache",buf);
+    rt = readlink(path,link,sizeof(link));
+    if (rt<0){
+	strcpy(point,"alone");
+    }else{
+	get_tail(uuid,link,38);
+	strcpy(point,uuid);
+    }
+    return 0;
 }
 
 /*
