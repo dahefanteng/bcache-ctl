@@ -9,6 +9,9 @@ struct dev{
     int sectors_per_block;
     int sectors_per_bucket;
     char cset[40];
+    char state[40];
+    char bname[20];
+    char attachuuid[40];
     struct dev *next;
 };
 

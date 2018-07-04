@@ -70,6 +70,150 @@ int list_bdevs(char devs[][50]){
 }
 */
 
+/*
+ *
+ * utils function
+ */
+
+void trim_prefix(char *dest,char *src){
+	//TODU:we should not trim prefix using number;
+	strcpy(dest,src+5);	
+}
+
+void get_tail(char *dest,char *src,int n){
+        int num,i;
+        num = strlen(src);
+//	printf("\n string len is%d\n",num);
+        for (i=0;i<n;i++){
+//		printf("iiiii:%d,%c\n",i,src[num-n+i]);
+                dest[i]=src[num-n+i];
+        }
+	dest[i] = '\0';
+//	printf("\ni is %d, uuid:%s,len is %d",i,dest,strlen(dest));
+}
+
+void trim_tail(char *dest,char *src,int n){
+	
+
+	int num,i;
+	num = strlen(src);
+
+	for (i=0;i<num-n;i++){
+		dest[i]=src[i];
+//		printf("i is %d,src is %c\t %d\n",i,dest[i],dest[i]);
+	}
+	dest[i] = '\0';
+//		printf("i is %d,src is %c\t %d\n",i,dest[i],dest[i]);
+}
+
+int get_state(struct dev *dev,char *state){
+        if (dev->version == BCACHE_SB_VERSION_CDEV || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
+                return get_cachedev_state(dev->cset,state);
+        }else if(dev->version == BCACHE_SB_VERSION_BDEV || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET ){
+                return get_backdev_state(dev->name,state);
+        }
+}
+
+
+int get_backdev_state(char *devname,char *state){
+    FILE* fd;
+    char path[100];
+    char buf[20];
+    trim_prefix(buf,devname);
+    sprintf(path,"/sys/block/%s/bcache/state",buf);
+    fd = fopen(path,"r");
+    if (fd == NULL)
+    {
+	strcpy(state,"inactive");
+	return 0;
+    }
+	int i=0;
+        while((state[i]=getc(fd)) != '\n' ){
+	    i++;
+	}
+	state[i]='\0';
+//	num = fread(state,1,8,fd);
+//printf("strlen is %d",strlen(state));
+    fclose(fd);
+    return 0;
+}
+
+int get_cachedev_state(char *cset_id,char *state){
+	int fd;
+	char path[100];
+	sprintf(path,"/sys/fs/bcache/%s/unregister",cset_id);
+        fd = open(path,O_WRONLY);
+        if (fd < 0)
+        {
+	    strcpy(state,"inactive");
+        }else{
+	    strcpy(state,"active");
+	}
+            return 0;
+}
+
+int get_bname(struct dev *dev,char *bname){
+        if (dev->version == BCACHE_SB_VERSION_CDEV || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
+                strcpy(bname,"N/A");
+        }else if(dev->version == BCACHE_SB_VERSION_BDEV || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET ){
+                return get_dev_bname(dev->name,bname);
+        }
+        return 0;
+}
+
+int get_dev_bname(char *devname,char *bname){
+    int rt;
+    char path[100];
+    char buf[20];
+    char link[100];
+    char buf1[100];
+    trim_prefix(buf,devname);
+    sprintf(path,"/sys/block/%s/bcache/dev",buf);
+    rt = readlink(path,link,sizeof(link));
+    if (rt<0){
+	strcpy(bname,"non-exsit");
+    }else{
+	//printf("rt is %d,strlen is %d",rt,strlen(link));
+	trim_tail(buf1,link,strlen(link)-rt);
+//	printf("bbg%s",buf);
+	strcpy(bname,buf1+41);
+    }
+    return 0;
+}
+
+int get_point(struct dev *dev,char *point){
+        if (dev->version == BCACHE_SB_VERSION_CDEV || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
+                strcpy(point,"N/A");
+        }else if(dev->version == BCACHE_SB_VERSION_BDEV || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET ){
+                return get_backdev_attachpoint(dev->name,point);
+        }
+        return 0;
+}
+
+int get_backdev_attachpoint(char *devname,char *point){
+    int rt;
+    char path[100];
+    char buf[20];
+    char link[100];
+    char uuid[40];
+    char buf1[100];
+    trim_prefix(buf,devname);
+    sprintf(path,"/sys/block/%s/bcache/cache",buf);
+    rt = readlink(path,link,sizeof(link));
+    if (rt<0){
+	strcpy(point,"alone");
+    }else{
+	trim_tail(buf1,link,strlen(link)-rt);
+	get_tail(uuid,buf1,36);
+	strcpy(point,uuid);
+    }
+    return 0;
+}
+
+
+
+
+
 int list_bdevs(struct dev **devs){
 	DIR *dir;
 	struct dirent *ptr;
@@ -113,10 +257,8 @@ int list_bdevs(struct dev **devs){
 		struct dev *tmp,*current;
 		int rt;
 		if (*devs){
-//			printf("this is not first");
 			tmp = (struct dev *)malloc(DEVLEN);
-			strcpy(tmp->name,dev);
-			rt = detail_base(sb,tmp);
+			rt = detail_base(dev,sb,tmp);
 			if (rt!= 0){
 				printf("error occur");
 				return 1;
@@ -125,10 +267,9 @@ int list_bdevs(struct dev **devs){
 				current = tmp;
 			}
 		}else{
-//			printf("this is first");
+//			printf("enter firest\n");
 			tmp = (struct dev *)malloc(DEVLEN);
-			strcpy(tmp->name,dev);
-			rt=detail_base(sb,tmp);
+			rt=detail_base(dev,sb,tmp);
 			if (rt!=0){
 				printf("error occur");
 				return 1;
@@ -177,12 +318,11 @@ struct cdev{
 
 int detail_bdev(char *devname,struct bdev *bd){
 //TODU: merge the detail_bdev and detail_cdev function
-	printf("enter detail");
         struct cache_sb sb;
 	uint64_t expected_csum;
         int fd = open(devname, O_RDONLY);
         if (fd < 0) {
-                printf("Can't open dev %s\n", devname);
+                fprintf(stderr,"Can't open dev %s,in function:detail_bdev\n", devname);
                 return 1;
         }
 
@@ -225,12 +365,15 @@ int detail_bdev(char *devname,struct bdev *bd){
 
 	bd->base.sectors_per_block = sb.block_size;
 	bd->base.sectors_per_bucket = sb.bucket_size;
+	close(fd);
         return 0;	
 }
 
-int detail_base(struct cache_sb sb,struct dev *base){
+int detail_base(char *devname,struct cache_sb sb,struct dev *base){
 //TODU: should we add static to return value?
+	int ret;
 	uint64_t expected_csum;
+	strcpy(base->name,devname);
 	base->magic="ok";
 	base->first_sector=SB_SECTOR;
 	base->csum = sb.csum;
@@ -247,7 +390,19 @@ int detail_base(struct cache_sb sb,struct dev *base){
 	uuid_unparse(sb.set_uuid, base->cset);
 	base->sectors_per_block = sb.block_size;
 	base->sectors_per_bucket = sb.bucket_size;
-
+	if ((ret = get_state(base,base->state)) !=0){
+		printf("err when get state");
+		return ret;
+	}
+	if ((ret = get_bname(base,base->bname)) !=0){
+		printf("err when get bname");
+		return ret;
+	}
+	if ((ret = get_point(base,base->attachuuid)) !=0){
+		printf("err when get attach");
+		return ret;
+	}
+//	printf("attach uuid is %s\n",base->attachuuid);
         return 0;	
 }
 
@@ -257,7 +412,8 @@ int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
 	uint64_t expected_csum;
         int fd = open(devname, O_RDONLY);
         if (fd < 0) {
-                printf("Can't open dev %s\n", devname);
+		printf("\nstring len is %d\n",strlen(devname));
+                printf("Can't open dev  %s,in function detail_dev,fd is %d\n", devname,fd);
                 return 1;
         }
 
@@ -282,12 +438,12 @@ int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
 
 	*type = sb.version;
 	if (sb.version == BCACHE_SB_VERSION_BDEV) {
-		detail_base(sb,&bd->base);
+		detail_base(devname,sb,&bd->base);
 		bd->first_sector=BDEV_DATA_START_DEFAULT;
 		bd->cache_mode=BDEV_CACHE_MODE(&sb);
 		bd->cache_state=BDEV_STATE(&sb);
 	}else if (sb.version == BCACHE_SB_VERSION_CDEV || sb.version == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-		detail_base(sb,&cd->base);
+		detail_base(devname,sb,&cd->base);
 		cd->first_sector=sb.bucket_size * sb.first_bucket;
 		cd->cache_sectors=sb.bucket_size * (sb.nbuckets - sb.first_bucket);
 		cd->total_sectors=sb.bucket_size * sb.nbuckets;
@@ -338,32 +494,6 @@ int unregiste_cset(char *cset){
     }
 
     return 0;
-}
-
-void trim_prefix(char *dest,char *src){
-	//TODU:we should not trim prefix using number;
-	strcpy(dest,src+5);	
-}
-
-void get_tail(char *dest,char *src,int n){
-        int num,i;
-        num = strlen(src);
-//	printf("\n string len is%d\n",num);
-        for (i=0;i<n;i++){
-//		printf("iiiii:%d,%c\n",i,src[num-n+i]);
-                dest[i]=src[num-n+i];
-        }
-//	dest[i+1] = '\0';
-//	printf("\ni is %d, uuid:%s,len is %d",i,dest,strlen(dest));
-}
-
-void trim_tail(char *dest,char *src,int n){
-	int num,i;
-	num = strlen(src);
-	for (i=0;i<num-n-1;i++){
-		dest[i]=src[i];
-	}
-	dest[i] = '\0';
 }
 
 int stop_backdev(char *devname){
@@ -482,86 +612,9 @@ int get_backdev_cachemode(char *devname,char *mode){
     return 0;
 }
 
-int get_backdev_state(char *devname,char *state){
-    FILE* fd;
-    char path[100];
-    char buf[20];
-    trim_prefix(buf,devname);
-    sprintf(path,"/sys/block/%s/bcache/state",buf);
-    fd = fopen(path,"r");
-    if (fd == NULL)
-    {
-	strcpy(state,"inactive");
-	return 1;
-    }
-	int i=0;
-        while((state[i]=getc(fd)) != '\n' ){
-	    i++;
-	}
-	state[i]='\0';
-//	num = fread(state,1,8,fd);
-//printf("strlen is %d",strlen(state));
-    fclose(fd);
-    return 0;
-}
-
-int get_cachedev_state(char *devname,char *state){
-	struct bdev bd;
-	struct cdev cd;
-	int rt,fd,type;
-	rt = detail_dev(devname,&bd,&cd,&type);
-	char *cset_id = cd.base.cset;
-	char path[100];
-	sprintf(path,"/sys/fs/bcache/%s/unregister",cset_id);
-        fd = open(path,O_WRONLY);
-        if (fd < 0)
-        {
-	    strcpy(state,"inactive");
-        }else{
-	    strcpy(state,"active");
-	}
-            return 0;
-}
-
-int get_backdev_attachpoint(char *devname,char *point){
-    int rt;
-    char path[100];
-    char buf[20];
-    char link[100];
-    char uuid[40];
-    char buf1[100];
-    trim_prefix(buf,devname);
-    sprintf(path,"/sys/block/%s/bcache/cache",buf);
-    rt = readlink(path,link,sizeof(link));
-    if (rt<0){
-	strcpy(point,"alone");
-    }else{
-	trim_tail(buf1,link,1);
-	get_tail(uuid,buf1,36);
-	strcpy(point,uuid);
-    }
-    return 0;
-}
 
 
-int get_dev_bname(char *devname,char *bname){
-    int rt;
-    char path[100];
-    char buf[20];
-    char link[100];
-    char buf1[100];
-    trim_prefix(buf,devname);
-    sprintf(path,"/sys/block/%s/bcache/dev",buf);
-    rt = readlink(path,link,sizeof(link));
-    if (rt<0){
-	strcpy(bname,"non-exsit");
-    }else{
-	trim_tail(buf1,link,1);
-//	printf("bbg%s",buf);
-	strcpy(bname,buf1+41);
-    }
-    return 0;
-}
+
 
 /*
 int main(){
@@ -600,3 +653,5 @@ listdevstest
 	printf("result code is %d,back is %d\n,base is %d\n",rt,(&back)->first_sector,(&back)->base.first_sector);
 }
 */
+
+

@@ -82,33 +82,6 @@ int show_bdevs(){
 }
 */
 
-int get_state(struct dev *dev,char *state){
-	if (dev->version == BCACHE_SB_VERSION_CDEV || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
-		return get_cachedev_state(dev->name,state); 	
-	}else if(dev->version == BCACHE_SB_VERSION_BDEV || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET ){
-		return get_backdev_state(dev->name,state);
-	}
-}
-
-
-int get_point(struct dev *dev,char *point){
-	if (dev->version == BCACHE_SB_VERSION_CDEV || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
-		strcpy(point,"N/A");
-	}else if(dev->version == BCACHE_SB_VERSION_BDEV || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET ){
-		return get_backdev_attachpoint(dev->name,point);
-	}
-	return 0;
-}
-
-
-int get_bname(struct dev *dev,char *bname){
-	if (dev->version == BCACHE_SB_VERSION_CDEV || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
-		strcpy(bname,"N/A");
-	}else if(dev->version == BCACHE_SB_VERSION_BDEV || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET ){
-		return get_dev_bname(dev->name,bname);
-	}
-	return 0;
-}
 
 int show_bdevs_detail(){
 	struct dev *devs=NULL;
@@ -143,19 +116,14 @@ int show_bdevs_detail(){
                         return 0;
         	}
 
-		get_state(devs,state);
-		printf("\t%s",state);
-		if (strlen(state)%8 != 0){
+		printf("\t%s",devs->state);
+		if (strlen(devs->state)%8 != 0){
 			putchar('\t');
 		}
-		char point[50];
-		get_point(devs,point);
 		//TODU:adjust the distance between two lines
-		printf("\t%-36s",point);
+		printf("\t%-36s",devs->attachuuid);
 		
-		char bname[30];
-		get_bname(devs,bname);
-		printf("\t%s",bname);
+		printf("\t%s",devs->bname);
 		putchar('\n');
 
 		tmp = devs;
@@ -199,15 +167,12 @@ int show_bdevs(){
                         return 0;
         }
 
-		get_state(devs,state);
-		printf("\t%s",state);
-		if (strlen(state)%8 != 0){
+		printf("\t%s",devs->state);
+		if (strlen(devs->state)%8 != 0){
 			putchar('\t');
 		}
 		
-		char bname[30];
-		get_bname(devs,bname);
-		printf("\t%s",bname);
+		printf("\t%s",devs->bname);
 		putchar('\n');
 
 		tmp = devs;
@@ -297,8 +262,7 @@ int detail(char *devname){
 }
 
 int tree(){
-
-
+	printf("enter tree");
 }
 
 int main(int argc, char **argv) 
