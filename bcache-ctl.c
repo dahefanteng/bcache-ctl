@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include "make-bcache.h"
 #include "bcache.h"
 #include "lib.h"
@@ -109,7 +110,7 @@ int get_bname(struct dev *dev,char *bname){
 	return 0;
 }
 
-int show_bdevs(){
+int show_bdevs_detail(){
 	struct dev *devs=NULL;
 	struct dev *tmp;
 	int rt;
@@ -140,7 +141,7 @@ int show_bdevs(){
                         printf(" (unknown)");
                         // exit code?
                         return 0;
-        }
+        	}
 
 		get_state(devs,state);
 		printf("\t%s",state);
@@ -151,6 +152,58 @@ int show_bdevs(){
 		get_point(devs,point);
 		//TODU:adjust the distance between two lines
 		printf("\t%-36s",point);
+		
+		char bname[30];
+		get_bname(devs,bname);
+		printf("\t%s",bname);
+		putchar('\n');
+
+		tmp = devs;
+		devs = devs->next;
+		free(tmp);
+	}
+	return 0;
+}
+
+
+int show_bdevs(){
+	struct dev *devs=NULL;
+	struct dev *tmp;
+	int rt;
+        rt =list_bdevs(&devs);
+	if (rt != 0){
+		printf("result is non-zero:%d",rt);
+		return rt;
+	}
+		
+	printf("name\t\tuuid\t\t\t\t\ttype\t\tstate\t\tbcachename\n");
+	char state[20];
+	while (devs) {
+		printf("%s\t%s\t%d",devs->name,devs->uuid,devs->version); 
+	        switch (devs->version) {
+                // These are handled the same by the kernel
+                case BCACHE_SB_VERSION_CDEV:
+                case BCACHE_SB_VERSION_CDEV_WITH_UUID:
+                        printf(" (cache)");
+                        break;
+
+                // The second adds data offset support
+                case BCACHE_SB_VERSION_BDEV:
+                case BCACHE_SB_VERSION_BDEV_WITH_OFFSET:
+                        printf(" (data)");
+                        break;
+
+                default:
+                        printf(" (unknown)");
+                        // exit code?
+                        return 0;
+        }
+
+		get_state(devs,state);
+		printf("\t%s",state);
+		if (strlen(state)%8 != 0){
+			putchar('\t');
+		}
 		
 		char bname[30];
 		get_bname(devs,bname);
@@ -243,6 +296,11 @@ int detail(char *devname){
 	}
 }
 
+int tree(){
+
+
+}
+
 int main(int argc, char **argv) 
 {
 	char *subcmd;
@@ -252,19 +310,43 @@ int main(int argc, char **argv)
   	}else{
 		subcmd = argv[1];
 		argc--;
-		argv=&argv[1];
+		argv=argv+1;
 	}
 
 	if (strcmp(subcmd,"make-bcache")==0) {
 		make_bcache(argc,argv);
 
 	} else if(strcmp(subcmd,"show")==0){
-		if (argc == 1){
-			return show_bdevs();
-		}else if (argc == 2){
-			detail(argv[1]);
+//		if (argc == 1){
+//			return show_bdevs();
+//		}else if (argc == 2){
+//			detail(argv[1]);
+//		}else{
+//			return showusage();
+//		}
+		int ret;
+		int o=0;
+		char *devname;
+		int more =0;
+		int device=0;
+		
+		while((o = getopt(argc,argv,"od:")) != EOF){
+			switch(o){
+				case 'd':
+					devname=optarg;
+					device=1;
+					break;
+				case 'o':
+					more=1;
+					break;
+			}
+		}
+		if (device){
+			return detail(devname);
+		} else if (more){
+			return show_bdevs_detail();
 		}else{
-			return showusage();
+			return show_bdevs();
 		}
 	} else if(strcmp(subcmd,"registe")==0){
 		printf("registe %d",argc);
