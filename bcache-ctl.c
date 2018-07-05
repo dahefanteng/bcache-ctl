@@ -16,7 +16,7 @@ int  myusage()
 		"	show		show all bcache devices in this host\n"
 		"	tree		show active bcache devices in this host\n"
 		"	make-bcache	make regular device to bcache device\n"
-		"	regist 	regist device to kernel\n"
+		"	regist 		regist device to kernel\n"
 		"	unregist	unregist device from kernel\n"
 		"	attach		attach backend device(data device) to cache device\n"
 		"	detach		detach backend device(data device) from cache device\n"
@@ -103,7 +103,7 @@ int show_bdevs_detail(){
 		return rt;
 	}
 	prev = devs;	
-	printf("name\t\tuuid\t\t\t\t\tcset_uuid\t\t\t\ttype\t\tstate\t\tbname\t\tattachtodev\tattachtocset\n");
+	printf("Name\t\tUuid\t\t\t\t\tCset_Uuid\t\t\t\tType\t\tState\t\tBname\t\tAttachToDev\tAttachToCset\n");
 		char state[20];
 	while (devs) {
 		printf("%s\t%s\t%s\t%d",devs->name,devs->uuid,devs->cset,devs->version); 
@@ -164,7 +164,7 @@ int show_bdevs(){
 		return rt;
 	}
 		
-	printf("name\t\ttype\t\tstate\t\tbname\t\tattachtodev\n");
+	printf("Name\t\tType\t\tState\t\tBname\t\tAttachToDev\n");
 	char state[20];
 	while (devs) {
 		printf("%s\t%d",devs->name,devs->version); 
