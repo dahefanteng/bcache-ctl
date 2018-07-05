@@ -75,9 +75,8 @@ int list_bdevs(char devs[][50]){
  * utils function
  */
 
-void trim_prefix(char *dest,char *src){
-	//TODU:we should not trim prefix using number;
-	strcpy(dest,src+5);	
+void trim_prefix(char *dest,char *src,int num){
+	strcpy(dest,src+num);	
 }
 
 void get_tail(char *dest,char *src,int n){
@@ -119,7 +118,7 @@ int get_backdev_state(char *devname,char *state){
     FILE* fd;
     char path[100];
     char buf[20];
-    trim_prefix(buf,devname);
+    trim_prefix(buf,devname,5);
     sprintf(path,"/sys/block/%s/bcache/state",buf);
     fd = fopen(path,"r");
     if (fd == NULL)
@@ -167,7 +166,7 @@ int get_dev_bname(char *devname,char *bname){
     char buf[20];
     char link[100];
     char buf1[100];
-    trim_prefix(buf,devname);
+    trim_prefix(buf,devname,5);
     sprintf(path,"/sys/block/%s/bcache/dev",buf);
     rt = readlink(path,link,sizeof(link));
     if (rt<0){
@@ -197,7 +196,7 @@ int get_backdev_attachpoint(char *devname,char *point){
     char link[100];
     char uuid[40];
     char buf1[100];
-    trim_prefix(buf,devname);
+    trim_prefix(buf,devname,5);
     sprintf(path,"/sys/block/%s/bcache/cache",buf);
     rt = readlink(path,link,sizeof(link));
     if (rt<0){
@@ -330,7 +329,6 @@ struct cdev{
 */
 
 int detail_bdev(char *devname,struct bdev *bd){
-//TODU: merge the detail_bdev and detail_cdev function
         struct cache_sb sb;
 	uint64_t expected_csum;
         int fd = open(devname, O_RDONLY);
@@ -383,7 +381,6 @@ int detail_bdev(char *devname,struct bdev *bd){
 }
 
 int detail_base(char *devname,struct cache_sb sb,struct dev *base){
-//TODU: should we add static to return value?
 	int ret;
 	uint64_t expected_csum;
 	strcpy(base->name,devname);
@@ -420,7 +417,6 @@ int detail_base(char *devname,struct cache_sb sb,struct dev *base){
 }
 
 int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
-//TODU: merge the detail_bdev and detail_cdev function
         struct cache_sb sb;
 	uint64_t expected_csum;
         int fd = open(devname, O_RDONLY);
@@ -471,7 +467,7 @@ int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
         return 0;	
 }
 
-int registe(char *devname){
+int regist(char *devname){
    // char *devname = "/dev/sdi";
     int fd;
     fd = open("/sys/fs/bcache/register", O_WRONLY);
@@ -490,7 +486,7 @@ int registe(char *devname){
     return 0;
 }
 
-int unregiste_cset(char *cset){
+int unregist_cset(char *cset){
 //    char *devname = "/dev/sdi";
     int fd;
     char path[100];
@@ -513,7 +509,7 @@ int stop_backdev(char *devname){
     char path[100];
     int fd;
     char buf[20];
-    trim_prefix(buf,devname);
+    trim_prefix(buf,devname,5);
     sprintf(path,"/sys/block/%s/bcache/stop",buf);
     fd = open(path,O_WRONLY);
     if (fd < 0)
@@ -529,7 +525,7 @@ int stop_backdev(char *devname){
     return 0;
 }
 
-int unregiste_both(char *cset){
+int unregist_both(char *cset){
     int fd;
     char path[100];
     sprintf(path,"/sys/fs/bcache/%s/stop",cset);
@@ -549,7 +545,7 @@ int unregiste_both(char *cset){
 int attach(char *cset,char *devname){
     int fd;
     char buf[20];
-    trim_prefix(buf,devname);
+    trim_prefix(buf,devname,5);
     char path[100];
     sprintf(path,"/sys/block/%s/bcache/attach",buf);
     fd = open(path,O_WRONLY);
@@ -569,7 +565,7 @@ int attach(char *cset,char *devname){
 int detach(char *devname){
     int fd;
     char buf[20];
-    trim_prefix(buf,devname);
+    trim_prefix(buf,devname,5);
     char path[100];
     sprintf(path,"/sys/block/%s/bcache/detach",buf);
     fd = open(path,O_WRONLY);
@@ -589,7 +585,7 @@ int set_backdev_cachemode(char *devname,char *cachemode){
     int fd;
     char path[100];
     char buf[20];
-    trim_prefix(buf,devname);
+    trim_prefix(buf,devname,5);
     sprintf(path,"/sys/block/%s/bcache/cache_mode",buf);
     fd = open(path,O_WRONLY);
     if (fd < 0)
