@@ -210,6 +210,19 @@ int get_backdev_attachpoint(char *devname,char *point){
     return 0;
 }
 
+int cset_to_devname(struct dev *devs,char *cset,char *devname){
+//	struct dev *prev;
+//	prev = devs;
+	while (devs) {
+		if ((devs->version == BCACHE_SB_VERSION_CDEV || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID) && strcmp(devs->cset,cset) == 0 ){
+			strcpy(devname,devs->name);
+			break;
+		}
+		devs = devs->next;
+	}
+//	printf("\n after convert:%s",devname);
+//	devs = prev;
+}
 
 
 

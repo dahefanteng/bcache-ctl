@@ -82,18 +82,26 @@ int show_bdevs(){
 }
 */
 
+void free_dev(struct dev *devs){
+	struct dev *tmp;
+	while (devs) {
+		tmp = devs;
+		devs = devs->next;
+		free(tmp);	
+	}
+}
 
 int show_bdevs_detail(){
 	struct dev *devs=NULL;
-	struct dev *tmp;
+	struct dev *prev;
 	int rt;
         rt =list_bdevs(&devs);
 	if (rt != 0){
 		printf("result is non-zero:%d",rt);
 		return rt;
 	}
-		
-	printf("name\t\tuuid\t\t\t\t\tcset_uuid\t\t\t\ttype\t\tstate\t\tattach\t\t\t\t\tbcachname\n");
+	prev = devs;	
+	printf("name\t\tuuid\t\t\t\t\tcset_uuid\t\t\t\ttype\t\tstate\t\tattach\t\t\t\t\tbcachname\tattachdev\n");
 		char state[20];
 	while (devs) {
 		printf("%s\t%s\t%s\t%d",devs->name,devs->uuid,devs->cset,devs->version); 
@@ -124,12 +132,20 @@ int show_bdevs_detail(){
 		printf("\t%-36s",devs->attachuuid);
 		
 		printf("\t%s",devs->bname);
+		
+		char attachdev[30];
+//		printf("\n%d\n",strlen(devs->cset));
+		if (strlen(devs->attachuuid) == 36){
+			cset_to_devname(devs,devs->cset,attachdev);
+		}else{
+			strcpy(attachdev,"");
+		}
+		printf("\t%s",attachdev);
 		putchar('\n');
 
-		tmp = devs;
 		devs = devs->next;
-		free(tmp);
 	}
+	free_dev(prev);
 	return 0;
 }
 
