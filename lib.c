@@ -11,87 +11,26 @@
 #include <string.h>
 #include <malloc.h>
 
-/*
-int list_bdevs(char devs[][50]){
-//	char devs[10][20]; //TODO:prevent memory leak,for now you show set the size large enough.
-//	maybe we can use linked list
-	printf("hello\n");
-	int i = 0;
-	DIR *dir;
-	struct dirent *ptr;
-        blkid_probe pr;
-        struct cache_sb sb;
-	char uuid[40];
-	char set_uuid[40];
-	dir = opendir("/sys/block");
-	while((ptr = readdir(dir))!=NULL){
-	    if (strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0){
-		continue;
-	    }
-            char dev[20];
-    	    sprintf(dev,"/dev/%s",ptr->d_name);
-	//	printf("%s\n",dev);
-//	    char dev[20] = "/dev/";
-//		strcat(dev,ptr->d_name);
-	        int fd = open(dev, O_RDONLY);
-                if (fd == -1)
-                        continue;
-
-                if (!(pr = blkid_new_probe()))
-                        continue;
-                if (blkid_probe_set_device(pr, fd, 0, 0))
-                        continue;
-                if (blkid_probe_enable_partitions(pr, true))
-                        continue;
-                if (!blkid_do_probe(pr)) {
-                        continue;
-                }
-
-                if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb))
-                        continue;
-
-                if (memcmp(sb.magic, bcache_magic, 16))
-                        continue;
-
-                uuid_unparse(sb.uuid, uuid);
-                uuid_unparse(sb.set_uuid, set_uuid);
-//                printf(" UUID=%s DEV=%s  SET_UUID=%s\n", uuid,dev,set_uuid);
-//		printf("i is %d",i);
-		strcpy(devs[i],dev);
-	//	devs[i]=dev;
-		i++;
-//		printf("sb.csum:%s\n",uuid);
-//		printf(dev,sb.csum);
-
-	}
-	strcpy(devs[i],"\0");
-	closedir(dir);
-	return 0;
-}
-*/
 
 /*
  *
  * utils function
  */
 
-void trim_prefix(char *dest,char *src,int num){
+static void trim_prefix(char *dest,char *src,int num){
 	strcpy(dest,src+num);	
 }
 
-void get_tail(char *dest,char *src,int n){
+static void get_tail(char *dest,char *src,int n){
         int num,i;
         num = strlen(src);
-//	printf("\n string len is%d\n",num);
         for (i=0;i<n;i++){
-//		printf("iiiii:%d,%c\n",i,src[num-n+i]);
                 dest[i]=src[num-n+i];
         }
 	dest[i] = '\0';
-//	printf("\ni is %d, uuid:%s,len is %d",i,dest,strlen(dest));
 }
 
-void trim_tail(char *dest,char *src,int n){
+static void trim_tail(char *dest,char *src,int n){
 	
 
 	int num,i;
@@ -99,10 +38,8 @@ void trim_tail(char *dest,char *src,int n){
 
 	for (i=0;i<num-n;i++){
 		dest[i]=src[i];
-//		printf("i is %d,src is %c\t %d\n",i,dest[i],dest[i]);
 	}
 	dest[i] = '\0';
-//		printf("i is %d,src is %c\t %d\n",i,dest[i],dest[i]);
 }
 
 int get_state(struct dev *dev,char *state){
@@ -117,7 +54,7 @@ int get_state(struct dev *dev,char *state){
 int get_backdev_state(char *devname,char *state){
     FILE* fd;
     char path[100];
-    char buf[20];
+    char buf[40];
     trim_prefix(buf,devname,5);
     sprintf(path,"/sys/block/%s/bcache/state",buf);
     fd = fopen(path,"r");
@@ -131,8 +68,6 @@ int get_backdev_state(char *devname,char *state){
 	    i++;
 	}
 	state[i]='\0';
-//	num = fread(state,1,8,fd);
-//printf("strlen is %d",strlen(state));
     fclose(fd);
     return 0;
 }
@@ -163,7 +98,7 @@ int get_bname(struct dev *dev,char *bname){
 int get_dev_bname(char *devname,char *bname){
     int rt;
     char path[100];
-    char buf[20];
+    char buf[40];
     char link[100];
     char buf1[100];
     trim_prefix(buf,devname,5);
@@ -172,9 +107,7 @@ int get_dev_bname(char *devname,char *bname){
     if (rt<0){
 	strcpy(bname,"non-exsit");
     }else{
-	//printf("rt is %d,strlen is %d",rt,strlen(link));
 	trim_tail(buf1,link,strlen(link)-rt);
-//	printf("bbg%s",buf);
 	strcpy(bname,buf1+41);
     }
     return 0;
@@ -210,8 +143,6 @@ int get_backdev_attachpoint(char *devname,char *point){
 }
 
 int cset_to_devname(struct dev *devs,char *cset,char *devname){
-//	struct dev *prev;
-//	prev = devs;
 	while (devs) {
 		if ((devs->version == BCACHE_SB_VERSION_CDEV || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID) && strcmp(devs->cset,cset) == 0 ){
 			strcpy(devname,devs->name);
@@ -219,8 +150,6 @@ int cset_to_devname(struct dev *devs,char *cset,char *devname){
 		}
 		devs = devs->next;
 	}
-//	printf("\n after convert:%s",devname);
-//	devs = prev;
 }
 
 
@@ -236,19 +165,11 @@ int list_bdevs(struct dev **devs){
 	    if (strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0){
 		continue;
 	    }
-//	    if (strncmp(ptr->d_name,"bcache",5) == 0){
-//		printf("skip bcache");
-//		continue;
-//	    }
             char dev[20];
     	    sprintf(dev,"/dev/%s",ptr->d_name);
-//	    char dev[20] = "/dev/";
-//		strcat(dev,ptr->d_name);
 	        int fd = open(dev, O_RDONLY);
                 if (fd == -1)
                         continue;
-		//printf("%s\n",dev);
-
                 if (!(pr = blkid_new_probe()))
                         continue;
                 if (blkid_probe_set_device(pr, fd, 0, 0))
@@ -279,7 +200,6 @@ int list_bdevs(struct dev **devs){
 				current = tmp;
 			}
 		}else{
-//			printf("enter firest\n");
 			tmp = (struct dev *)malloc(DEVLEN);
 			rt=detail_base(dev,sb,tmp);
 			if (rt!=0){
@@ -295,38 +215,6 @@ int list_bdevs(struct dev **devs){
 
 }
 
-/*
-struct dev{
-    char *magic;
-    uint64_t first_sector;
-    uint64_t csum;
-    int version;
-    char label[SB_LABEL_SIZE + 1];
-    char uuid[32];
-    int sectors_per_block;
-    int sectors_per_bucket;
-    char cset[32];
-};
-
-struct bdev{
-    struct dev base;
-    int first_sector;
-    int cache_mode;
-    int cache_state;
-};
-
-//typedef int bool;
-struct cdev{
-    struct dev base;
-    int first_sector;
-    int cache_sectors;
-    int total_sectors;
-    bool ordered;
-    bool discard;
-    int pos;
-    int replacement; 
-};
-*/
 
 int detail_bdev(char *devname,struct bdev *bd){
         struct cache_sb sb;
@@ -412,7 +300,6 @@ int detail_base(char *devname,struct cache_sb sb,struct dev *base){
 		printf("err when get attach");
 		return ret;
 	}
-//	printf("attach uuid is %s\n",base->attachuuid);
         return 0;	
 }
 
@@ -421,8 +308,7 @@ int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
 	uint64_t expected_csum;
         int fd = open(devname, O_RDONLY);
         if (fd < 0) {
-		printf("\nstring len is %d\n",strlen(devname));
-                printf("Can't open dev  %s,in function detail_dev,fd is %d\n", devname,fd);
+                fprintf(stderr,"Error: Can't open dev  %s\n", devname);
                 return 1;
         }
 
@@ -432,6 +318,7 @@ int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
         }
 	
 	if (memcmp(sb.magic, bcache_magic, 16)) {
+		fprintf(stderr,"Bad magic,make sure this is an bcache device\n");
                 return 1;
         }
 
@@ -442,6 +329,7 @@ int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
 	
 	expected_csum = csum_set(&sb);
         if (!sb.csum == expected_csum) {
+		fprintf(stderr,"Csum is not match with expected one");
                 return 1;
         }	
 
@@ -468,7 +356,6 @@ int detail_dev(char *devname,struct bdev *bd,struct cdev *cd,int *type){
 }
 
 int regist(char *devname){
-   // char *devname = "/dev/sdi";
     int fd;
     fd = open("/sys/fs/bcache/register", O_WRONLY);
     if (fd < 0)
@@ -487,18 +374,18 @@ int regist(char *devname){
 }
 
 int unregist_cset(char *cset){
-//    char *devname = "/dev/sdi";
     int fd;
     char path[100];
     sprintf(path,"/sys/fs/bcache/%s/unregister",cset);
     fd = open(path, O_WRONLY);
     if (fd < 0)
     {
-        fprintf(stderr, "The bcache kernel module must be loaded\n");
+        fprintf(stderr, "Can't open %s\n",path);
         return 1;
     }
     if (dprintf(fd, "%d\n", 1) < 0)
     {
+	fprintf(stderr,"Failed to unregist this cache device");
         return 1;
     }
 
@@ -514,12 +401,12 @@ int stop_backdev(char *devname){
     fd = open(path,O_WRONLY);
     if (fd < 0)
     {
-        fprintf(stderr, "The bcache kernel module must be loaded\n");
+        fprintf(stderr, "Can't open %s\n",path);
         return 1;
     }
     if (dprintf(fd, "%s\n", "1") < 0)
     {
-    //    fprintf(stderr, "Error stop back device %s\n", devname);
+        fprintf(stderr, "Error stop back device %s\n", devname);
         return 1;
     }
     return 0;
@@ -532,11 +419,12 @@ int unregist_both(char *cset){
     fd = open(path, O_WRONLY);
     if (fd < 0)
     {
-        fprintf(stderr, "The bcache kernel module must be loaded\n");
+        fprintf(stderr, "Can't open %s\n",path);
         return 1;
     }
     if (dprintf(fd, "%d\n", 1) < 0)
     {
+	fprintf(stderr,"failed to stop cset and its backends %m");
         return 1;
     }
     return 0;
@@ -551,11 +439,12 @@ int attach(char *cset,char *devname){
     fd = open(path,O_WRONLY);
     if (fd < 0)
     {
-        fprintf(stderr, "The bcache kernel module must be loaded\n");
+        fprintf(stderr, "Can't open %s:%m\n",path);
         return 1;
     }
     if (dprintf(fd, "%s\n", cset) < 0)
     {
+	fprintf(stderr,"failed to attache to cset %s\n",cset);
         return 1;
     }
 
@@ -571,11 +460,12 @@ int detach(char *devname){
     fd = open(path,O_WRONLY);
     if (fd < 0)
     {
-        fprintf(stderr, "The bcache kernel module must be loaded\n");
+        fprintf(stderr, "Can't open %s,Make sure the device name is correct\n",path);
         return 1;
     }
     if (dprintf(fd, "%d\n", 1) < 0)
     {
+	fprintf(stderr,"Error detach device %s:%m",devname);
         return 1;
     }
     return 0;
@@ -590,11 +480,12 @@ int set_backdev_cachemode(char *devname,char *cachemode){
     fd = open(path,O_WRONLY);
     if (fd < 0)
     {
-        fprintf(stderr, "The bcache kernel module must be loaded\n");
+        fprintf(stderr, "Can't open %s,Make sure the device name is correct\n",path);
         return 1;
     }
     if (dprintf(fd, "%s\n", cachemode) < 0)
     {
+	printf("Failed to set cachemode for device %s:%m\n",devname);
         return 1;
     }
     return 0;
@@ -620,47 +511,4 @@ int get_backdev_cachemode(char *devname,char *mode){
     
     return 0;
 }
-
-
-
-
-
-/*
-int main(){
-//	list_bcacheset();
-	//unregiste_cset("112edd51-a548-4945-b0eb-3df948e90fda");
-//	stop_backdev("sdh");
-//	unregiste_both("112edd51-a548-4945-b0eb-3df948e90fda");
-//	detach("sdh");
-	//attach("112edd51-a548-4945-b0eb-3df948e90fda","sdh");
-	//int rt;
-	//char mode[42];
-	//rt = get_backdev_state("sdh",mode);
-
-listdevstest
-	char a[500][50];	
-	list_bdevs(a);
-
- 
- 	printf("\n%d\n",sizeof(a));
-	int i;
-	for (i=0;i<5;i++){
-	int r;
-	r = strcmp(a[i],"\0");
-	printf("r is %d",r);
-	if  (strcmp(a[i],"\0")==0){
-		printf("empty in %d",i);
-		break;
-	}
-	printf("%d %s \n",i,a[i]);
-}
-
-	struct bdev back;
-	printf("init is %d\n",back.first_sector);
-	int rt;
-        rt = detail_bdev("/dev/sdh",&back);
-	printf("result code is %d,back is %d\n,base is %d\n",rt,(&back)->first_sector,(&back)->base.first_sector);
-}
-*/
-
 

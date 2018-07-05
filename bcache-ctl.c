@@ -5,17 +5,56 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <regex.h>
 #include "make-bcache.h"
 #include "bcache.h"
 #include "lib.h"
 
-int  myusage()
+//utils function
+bool bad_uuid(char *uuid){
+        const char *pattern = "^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$";
+        regex_t reg;
+        int status;
+        regmatch_t regmatche;
+        if (regcomp(&reg,pattern,REG_EXTENDED) != 0){
+           printf("error happen");
+        }
+        status = regexec(&reg,uuid,1,&regmatche,0);
+	regfree(&reg);
+        if (status == REG_NOMATCH){
+	   return true;
+        }else{
+	   return false;
+        }
+}
+
+bool bad_dev(char *devname){
+        const char *pattern = "^/dev/[a-zA-Z0-9]*$";
+        regex_t reg;
+        int status;
+        regmatch_t regmatche;
+        if (regcomp(&reg,pattern,REG_EXTENDED) != 0){
+           printf("error happen");
+        }
+        status = regexec(&reg,devname,1,&regmatche,0);
+	regfree(&reg);
+        if (status == REG_NOMATCH){
+        	return true;
+        }else{
+		return false;
+	}
+}
+
+
+
+
+int  ctlusage()
 {
 	fprintf(stderr,
 		"Usage:bcache-ctl [SUBCMD]\n"
 		"	show		show all bcache devices in this host\n"
 		"	tree		show active bcache devices in this host\n"
-		"	make-bcache	make regular device to bcache device\n"
+		"	make		make regular device to bcache device\n"
 		"	regist 		regist device to kernel\n"
 		"	unregist	unregist device from kernel\n"
 		"	attach		attach backend device(data device) to cache device\n"
@@ -33,15 +72,20 @@ int showusage(){
 	return EXIT_FAILURE;
 }
 
+int treeusage(){
+	fprintf(stderr,"Usage: tree	show active bcache devices in this host\n");
+	return EXIT_FAILURE;
+}
+
 int registusage(){
 	fprintf(stderr,
-	"Usage:regist devicename	regist device as bcache device to kernel\n");
+	"Usage:regist devicename		regist device as bcache device to kernel\n");
 	return EXIT_FAILURE;
 }
 
 int unregistusage(){
 	fprintf(stderr,
-	"Usage:unregist devicename	unregist device from kernel\n");
+	"Usage:unregist devicename		unregist device from kernel\n");
 	return EXIT_FAILURE;
 }
 
@@ -63,26 +107,6 @@ int setcachemodeusage(){
 	return EXIT_FAILURE;
 }
 
-/*
-int show_bdevs(){
-        char a[500][50];        
-        list_bdevs(a);
- 
-        printf("\n%d\n",sizeof(a));
-        int i;
-        for (i=0;i<500;i++){
-        int r;
-       // r = strcmp(a[i],"\0");
-       // printf("r is %d",r);
-        if  (strcmp(a[i],"\0")==0){
-                 printf("empty in %d",i);
-                break;
-        }
-        printf("%d %s \n",i,a[i]);
-	}
-	return 0;
-}
-*/
 
 void free_dev(struct dev *devs){
 	struct dev *tmp;
@@ -122,8 +146,7 @@ int show_bdevs_detail(){
 
                 default:
                         printf(" (unknown)");
-                        // exit code?
-                        return 0;
+                        break;
         	}
 
 		printf("\t%s",devs->state);
@@ -134,11 +157,12 @@ int show_bdevs_detail(){
 		printf("\t%-16s",devs->bname);
 		
 		char attachdev[30];
-//		printf("\n%d\n",strlen(devs->cset));
 		if (strlen(devs->attachuuid) == 36){
 			cset_to_devname(devs,devs->cset,attachdev);
-		}else{
+		}else if (devs->version == BCACHE_SB_VERSION_CDEV || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
 			strcpy(attachdev,"N/A");
+		} else {
+			strcpy(attachdev,"alone");
 		}
 		printf("%-16s",attachdev);
 
@@ -183,8 +207,7 @@ int show_bdevs(){
 
                 default:
                         printf(" (unknown)");
-                        // exit code?
-                        return 0;
+                        break;
         }
 
 		printf("\t%s",devs->state);
@@ -195,11 +218,12 @@ int show_bdevs(){
 		printf("\t%-16s",devs->bname);
 
 		char attachdev[30];
-//		printf("\n%d\n",strlen(devs->cset));
 		if (strlen(devs->attachuuid) == 36){
 			cset_to_devname(devs,devs->cset,attachdev);
-		}else{
+		}else if (devs->version == BCACHE_SB_VERSION_CDEV || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
 			strcpy(attachdev,"N/A");
+		} else {
+			strcpy(attachdev,"alone");
 		}
 		printf("%s",attachdev);
 		putchar('\n');
@@ -333,6 +357,19 @@ int attach_both(char *cdev,char *backdev){
 	int type =1;
 	int rt;
 	char buf[100];
+	rt = detail_dev(backdev,&bd,&cd,&type);
+	if (rt < 0){
+		return rt;
+	}
+	if (type != BCACHE_SB_VERSION_BDEV && type != BCACHE_SB_VERSION_BDEV_WITH_OFFSET){
+		fprintf(stderr,"%s is not an backend device",backdev);
+		return 1;
+	}
+	if (strcmp(bd.base.attachuuid,"alone") != 0 ){
+		fprintf(stderr,"this device have attached to another cset\n");
+		return 1;
+	}
+
 	if (strlen(cdev)!=36){
 		rt = detail_dev(cdev,&bd,&cd,&type);
 		if (type != BCACHE_SB_VERSION_CDEV && type != BCACHE_SB_VERSION_CDEV_WITH_UUID){
@@ -346,37 +383,30 @@ int attach_both(char *cdev,char *backdev){
 	return attach(buf,backdev);
 }
 
-//TODO:check the args in the proper way
 int main(int argc, char **argv) 
 {
 	char *subcmd;
 	if (argc < 2){
-	    myusage();
+	    ctlusage();
 	    return 1;
   	}else{
 		subcmd = argv[1];
 		argc--;
-		argv=argv+1;
+		argv+=1;
 	}
 
-	if (strcmp(subcmd,"make-bcache")==0) {
-		make_bcache(argc,argv);
+	if (strcmp(subcmd,"make")==0) {
+		return make_bcache(argc,argv);
 
 	} else if(strcmp(subcmd,"show")==0){
-//		if (argc == 1){
-//			return show_bdevs();
-//		}else if (argc == 2){
-//			detail(argv[1]);
-//		}else{
-//			return showusage();
-//		}
 		int ret;
 		int o=0;
 		char *devname;
 		int more =0;
 		int device=0;
+		int help=0;
 		
-		while((o = getopt(argc,argv,"od:")) != EOF){
+		while((o = getopt(argc,argv,"hod:")) != EOF){
 			switch(o){
 				case 'd':
 					devname=optarg;
@@ -385,25 +415,41 @@ int main(int argc, char **argv)
 				case 'o':
 					more=1;
 					break;
+				case 'h':
+					help=1;
+					break;
 			}
 		}
 		if (device){
 			return detail(devname);
 		} else if (more){
 			return show_bdevs_detail();
+		} else if (help || argc != 1){
+			return showusage();
 		}else{
 			return show_bdevs();
 		}
 	} else if(strcmp(subcmd,"tree")==0){
+		if(argc != 1){
+			return treeusage();
+		}
 		return tree();
 	} else if(strcmp(subcmd,"regist")==0){
-		if (argc != 2){
+		if (argc != 2 ||strcmp(argv[1],"-h")==0){
 			return registusage();
+		}
+		if (bad_dev(argv[1])){
+			fprintf(stderr,"Error:wrong device name found\n");
+			return 1;
 		}
 		return regist(argv[1]);
 	} else if(strcmp(subcmd,"unregist")==0){
-		if (argc != 2){
+		if (argc != 2 ||strcmp(argv[1],"-h")==0){
 			return unregistusage();
+		}
+		if (bad_dev(argv[1])){
+			fprintf(stderr,"Error:wrong device name found\n");
+			return 1;
 		}
 		struct bdev bd;
 		struct cdev cd;
@@ -411,7 +457,6 @@ int main(int argc, char **argv)
 		int rt;
 		rt = detail_dev(argv[1],&bd,&cd,&type);
 		if (rt != 0) {
-			fprintf(stderr,"err occur ,ret is %d",rt);
 			return rt;
 		}
 		if (type==BCACHE_SB_VERSION_BDEV) {
@@ -421,22 +466,34 @@ int main(int argc, char **argv)
 		}
 		return 1;
 	} else if(strcmp(subcmd,"attach")==0){
-		if (argc != 3){
+		if (argc != 3 || strcmp(argv[1],"-h")==0){
 			return attachusage();
+		}
+		if (bad_dev(argv[1]) && bad_uuid(argv[1]) || bad_dev(argv[2])){
+			fprintf(stderr,"Error:wrong device name or uuid found\n");
+			return 1;
 		}
 		return attach_both(argv[1],argv[2]);
 	} else if(strcmp(subcmd,"detach")==0){
-		if (argc != 2){
+		if (argc != 2 || strcmp(argv[1],"-h")==0){
 			return detachusage();
+		}
+		if (bad_dev(argv[1])){
+			fprintf(stderr,"Error:wrong device name found\n");
+			return 1;
 		}
 		return detach(argv[1]);
 	}else if(strcmp(subcmd,"set-cachemode")==0){
 		if (argc != 3){
 			return setcachemodeusage();
 		}
+		if (bad_dev(argv[1])){
+			fprintf(stderr,"Error:wrong device name found\n");
+			return 1;
+		}
 		return set_backdev_cachemode(argv[1],argv[2]);
 	}else{
-		myusage();
+		ctlusage();
 	}
 	return 0;
 }

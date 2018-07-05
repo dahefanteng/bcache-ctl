@@ -1,5 +1,5 @@
 struct dev{
-    char name[20];
+    char name[40];
     char *magic;
     uint64_t first_sector;
     uint64_t csum;
@@ -10,7 +10,7 @@ struct dev{
     int sectors_per_bucket;
     char cset[40];
     char state[40];
-    char bname[20];
+    char bname[40];
     char attachuuid[40];
     struct dev *next;
 };
