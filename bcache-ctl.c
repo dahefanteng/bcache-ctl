@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <regex.h>
 #include "make-bcache.h"
 #include "bcache.h"
@@ -71,8 +72,9 @@ int showusage()
 	fprintf(stderr,
 		"Usage: show [option]"
 		"	show overall information about all devices\n"
-		"	-d devicename		show the detail infomation about this device\n"
-		"	-o 			show overall information about all devices with detail info \n");
+		"	-d --device {devname}	show the detail infomation about this device\n"
+		"	-m --more		show overall information about all devices with detail info \n"
+		"	-h --help		show help information \n");
 	return EXIT_FAILURE;
 }
 
@@ -464,27 +466,45 @@ int main(int argc, char **argv)
 		int more = 0;
 		int device = 0;
 		int help = 0;
+		//      opterr = 0;
 
-		while ((o = getopt(argc, argv, "hod:")) != EOF) {
+		static struct option long_options[] = {
+			{"more", no_argument, 0, 'm'},
+			{"help", no_argument, 0, 'h'},
+			{"device", required_argument, 0, 'd'},
+			{0, 0, 0, 0}
+		};
+		int option_index = 0;
+		while ((o =
+			getopt_long(argc, argv, "hmd:", long_options,
+				    &option_index)) != EOF) {
 			switch (o) {
 			case 'd':
 				devname = optarg;
 				device = 1;
 				break;
-			case 'o':
+			case 'm':
 				more = 1;
 				break;
 			case 'h':
 				help = 1;
 				break;
+			case '?':
+				return 1;
 			}
 		}
-		if (device) {
-			return detail(devname);
+		argc -= optind;
+		if (help || argc != 0) {
+			return showusage();
 		} else if (more) {
 			return show_bdevs_detail();
-		} else if (help || argc != 1) {
-			return showusage();
+		} else if (device) {
+			if (bad_dev(devname)) {
+				fprintf(stderr,
+					"Error:Wrong device name found\n");
+				return 1;
+			}
+			return detail(devname);
 		} else {
 			return show_bdevs();
 		}
@@ -498,7 +518,7 @@ int main(int argc, char **argv)
 			return registusage();
 		}
 		if (bad_dev(argv[1])) {
-			fprintf(stderr, "Error:wrong device name found\n");
+			fprintf(stderr, "Error:Wrong device name found\n");
 			return 1;
 		}
 		return regist(argv[1]);
@@ -507,7 +527,7 @@ int main(int argc, char **argv)
 			return unregistusage();
 		}
 		if (bad_dev(argv[1])) {
-			fprintf(stderr, "Error:wrong device name found\n");
+			fprintf(stderr, "Error:Wrong device name found\n");
 			return 1;
 		}
 		struct bdev bd;
@@ -532,7 +552,7 @@ int main(int argc, char **argv)
 		if (bad_dev(argv[1]) && bad_uuid(argv[1])
 		    || bad_dev(argv[2])) {
 			fprintf(stderr,
-				"Error:wrong device name or uuid found\n");
+				"Error:Wrong device name or uuid found\n");
 			return 1;
 		}
 		return attach_both(argv[1], argv[2]);
@@ -541,7 +561,7 @@ int main(int argc, char **argv)
 			return detachusage();
 		}
 		if (bad_dev(argv[1])) {
-			fprintf(stderr, "Error:wrong device name found\n");
+			fprintf(stderr, "Error:Wrong device name found\n");
 			return 1;
 		}
 		return detach(argv[1]);
@@ -550,7 +570,7 @@ int main(int argc, char **argv)
 			return setcachemodeusage();
 		}
 		if (bad_dev(argv[1])) {
-			fprintf(stderr, "Error:wrong device name found\n");
+			fprintf(stderr, "Error:Wrong device name found\n");
 			return 1;
 		}
 		return set_backdev_cachemode(argv[1], argv[2]);
