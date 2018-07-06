@@ -11,36 +11,39 @@
 #include "lib.h"
 
 //utils function
-bool bad_uuid(char *uuid){
-        const char *pattern = "^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$";
-        regex_t reg;
-        int status;
-        regmatch_t regmatche;
-        if (regcomp(&reg,pattern,REG_EXTENDED) != 0){
-           printf("error happen");
-        }
-        status = regexec(&reg,uuid,1,&regmatche,0);
+bool bad_uuid(char *uuid)
+{
+	const char *pattern =
+	    "^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$";
+	regex_t reg;
+	int status;
+	regmatch_t regmatche;
+	if (regcomp(&reg, pattern, REG_EXTENDED) != 0) {
+		printf("error happen");
+	}
+	status = regexec(&reg, uuid, 1, &regmatche, 0);
 	regfree(&reg);
-        if (status == REG_NOMATCH){
-	   return true;
-        }else{
-	   return false;
-        }
+	if (status == REG_NOMATCH) {
+		return true;
+	} else {
+		return false;
+	}
 }
 
-bool bad_dev(char *devname){
-        const char *pattern = "^/dev/[a-zA-Z0-9]*$";
-        regex_t reg;
-        int status;
-        regmatch_t regmatche;
-        if (regcomp(&reg,pattern,REG_EXTENDED) != 0){
-           printf("error happen");
-        }
-        status = regexec(&reg,devname,1,&regmatche,0);
+bool bad_dev(char *devname)
+{
+	const char *pattern = "^/dev/[a-zA-Z0-9]*$";
+	regex_t reg;
+	int status;
+	regmatch_t regmatche;
+	if (regcomp(&reg, pattern, REG_EXTENDED) != 0) {
+		printf("error happen");
+	}
+	status = regexec(&reg, devname, 1, &regmatche, 0);
 	regfree(&reg);
-        if (status == REG_NOMATCH){
-        	return true;
-        }else{
+	if (status == REG_NOMATCH) {
+		return true;
+	} else {
 		return false;
 	}
 }
@@ -48,7 +51,7 @@ bool bad_dev(char *devname){
 
 
 
-int  ctlusage()
+int ctlusage()
 {
 	fprintf(stderr,
 		"Usage:bcache-ctl [SUBCMD]\n"
@@ -63,111 +66,122 @@ int  ctlusage()
 	return EXIT_FAILURE;
 }
 
-int showusage(){
+int showusage()
+{
 	fprintf(stderr,
-	"Usage: show [option]"
-	"	show overall information about all devices\n"
-	"	-d devicename		show the detail infomation about this device\n"
-	"	-o 			show overall information about all devices with detail info \n");
+		"Usage: show [option]"
+		"	show overall information about all devices\n"
+		"	-d devicename		show the detail infomation about this device\n"
+		"	-o 			show overall information about all devices with detail info \n");
 	return EXIT_FAILURE;
 }
 
-int treeusage(){
-	fprintf(stderr,"Usage: tree	show active bcache devices in this host\n");
-	return EXIT_FAILURE;
-}
-
-int registusage(){
+int treeusage()
+{
 	fprintf(stderr,
-	"Usage:regist devicename		regist device as bcache device to kernel\n");
+		"Usage: tree	show active bcache devices in this host\n");
 	return EXIT_FAILURE;
 }
 
-int unregistusage(){
+int registusage()
+{
 	fprintf(stderr,
-	"Usage:unregist devicename		unregist device from kernel\n");
+		"Usage:regist devicename		regist device as bcache device to kernel\n");
 	return EXIT_FAILURE;
 }
 
-int attachusage(){
+int unregistusage()
+{
 	fprintf(stderr,
-	"Usage:attach cset_uuid|cachedevice datadevice\n");
+		"Usage:unregist devicename		unregist device from kernel\n");
 	return EXIT_FAILURE;
 }
 
-int detachusage(){
-	fprintf(stderr,
-	"Usage:detach devicename\n");
+int attachusage()
+{
+	fprintf(stderr, "Usage:attach cset_uuid|cachedevice datadevice\n");
 	return EXIT_FAILURE;
 }
 
-int setcachemodeusage(){
-	fprintf(stderr,
-	"Usage:set-cachemode devicename modetype\n");
+int detachusage()
+{
+	fprintf(stderr, "Usage:detach devicename\n");
+	return EXIT_FAILURE;
+}
+
+int setcachemodeusage()
+{
+	fprintf(stderr, "Usage:set-cachemode devicename modetype\n");
 	return EXIT_FAILURE;
 }
 
 
-void free_dev(struct dev *devs){
+void free_dev(struct dev *devs)
+{
 	struct dev *tmp;
 	while (devs) {
 		tmp = devs;
 		devs = devs->next;
-		free(tmp);	
+		free(tmp);
 	}
 }
 
-int show_bdevs_detail(){
-	struct dev *devs=NULL;
+int show_bdevs_detail()
+{
+	struct dev *devs = NULL;
 	struct dev *prev;
-	int rt;
-        rt =list_bdevs(&devs);
-	if (rt != 0){
-		fprintf(stderr,"result  is non-zero:%d",rt);
-		return rt;
+	int ret;
+	ret = list_bdevs(&devs);
+	if (ret != 0) {
+		fprintf(stderr, "result  is non-zero:%d", ret);
+		return ret;
 	}
-	prev = devs;	
-	printf("Name\t\tUuid\t\t\t\t\tCset_Uuid\t\t\t\tType\t\tState\t\tBname\t\tAttachToDev\tAttachToCset\n");
-		char state[20];
+	prev = devs;
+	printf
+	    ("Name\t\tUuid\t\t\t\t\tCset_Uuid\t\t\t\tType\t\tState\t\tBname\t\tAttachToDev\tAttachToCset\n");
+	char state[20];
 	while (devs) {
-		printf("%s\t%s\t%s\t%d",devs->name,devs->uuid,devs->cset,devs->version); 
-	        switch (devs->version) {
-                // These are handled the same by the kernel
-                case BCACHE_SB_VERSION_CDEV:
-                case BCACHE_SB_VERSION_CDEV_WITH_UUID:
-                        printf(" (cache)");
-                        break;
+		printf("%s\t%s\t%s\t%d", devs->name, devs->uuid,
+		       devs->cset, devs->version);
+		switch (devs->version) {
+			// These are handled the same by the kernel
+		case BCACHE_SB_VERSION_CDEV:
+		case BCACHE_SB_VERSION_CDEV_WITH_UUID:
+			printf(" (cache)");
+			break;
 
-                // The second adds data offset support
-                case BCACHE_SB_VERSION_BDEV:
-                case BCACHE_SB_VERSION_BDEV_WITH_OFFSET:
-                        printf(" (data)");
-                        break;
+			// The second adds data offset supporet
+		case BCACHE_SB_VERSION_BDEV:
+		case BCACHE_SB_VERSION_BDEV_WITH_OFFSET:
+			printf(" (data)");
+			break;
 
-                default:
-                        printf(" (unknown)");
-                        break;
-        	}
+		default:
+			printf(" (unknown)");
+			break;
+		}
 
-		printf("\t%s",devs->state);
-		if (strlen(devs->state)%8 != 0){
+		printf("\t%s", devs->state);
+		if (strlen(devs->state) % 8 != 0) {
 			putchar('\t');
 		}
-		
-		printf("\t%-16s",devs->bname);
-		
+
+		printf("\t%-16s", devs->bname);
+
 		char attachdev[30];
-		if (strlen(devs->attachuuid) == 36){
-			cset_to_devname(devs,devs->cset,attachdev);
-		}else if (devs->version == BCACHE_SB_VERSION_CDEV || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
-			strcpy(attachdev,"N/A");
+		if (strlen(devs->attachuuid) == 36) {
+			cset_to_devname(devs, devs->cset, attachdev);
+		} else if (devs->version == BCACHE_SB_VERSION_CDEV
+			   || devs->version ==
+			   BCACHE_SB_VERSION_CDEV_WITH_UUID) {
+			strcpy(attachdev, "N/A");
 		} else {
-			strcpy(attachdev,"alone");
+			strcpy(attachdev, "alone");
 		}
-		printf("%-16s",attachdev);
+		printf("%-16s", attachdev);
 
 		//TODU:adjust the distance between two lines
-		printf("%s",devs->attachuuid);
+		printf("%s", devs->attachuuid);
 		putchar('\n');
 
 		devs = devs->next;
@@ -177,55 +191,58 @@ int show_bdevs_detail(){
 }
 
 
-int show_bdevs(){
-	struct dev *devs=NULL;
+int show_bdevs()
+{
+	struct dev *devs = NULL;
 	struct dev *prev;
-	prev=devs;
-	int rt;
-        rt =list_bdevs(&devs);
-	if (rt != 0){
-		fprintf(stderr,"result is non-zero:%d",rt);
-		return rt;
+	prev = devs;
+	int ret;
+	ret = list_bdevs(&devs);
+	if (ret != 0) {
+		fprintf(stderr, "result is non-zero:%d", ret);
+		return ret;
 	}
-		
+
 	printf("Name\t\tType\t\tState\t\tBname\t\tAttachToDev\n");
 	char state[20];
 	while (devs) {
-		printf("%s\t%d",devs->name,devs->version); 
-	        switch (devs->version) {
-                // These are handled the same by the kernel
-                case BCACHE_SB_VERSION_CDEV:
-                case BCACHE_SB_VERSION_CDEV_WITH_UUID:
-                        printf(" (cache)");
-                        break;
+		printf("%s\t%d", devs->name, devs->version);
+		switch (devs->version) {
+			// These are handled the same by the kernel
+		case BCACHE_SB_VERSION_CDEV:
+		case BCACHE_SB_VERSION_CDEV_WITH_UUID:
+			printf(" (cache)");
+			break;
 
-                // The second adds data offset support
-                case BCACHE_SB_VERSION_BDEV:
-                case BCACHE_SB_VERSION_BDEV_WITH_OFFSET:
-                        printf(" (data)");
-                        break;
+			// The second adds data offset supporet
+		case BCACHE_SB_VERSION_BDEV:
+		case BCACHE_SB_VERSION_BDEV_WITH_OFFSET:
+			printf(" (data)");
+			break;
 
-                default:
-                        printf(" (unknown)");
-                        break;
-        }
+		default:
+			printf(" (unknown)");
+			break;
+		}
 
-		printf("\t%s",devs->state);
-		if (strlen(devs->state)%8 != 0){
+		printf("\t%s", devs->state);
+		if (strlen(devs->state) % 8 != 0) {
 			putchar('\t');
 		}
-		
-		printf("\t%-16s",devs->bname);
+
+		printf("\t%-16s", devs->bname);
 
 		char attachdev[30];
-		if (strlen(devs->attachuuid) == 36){
-			cset_to_devname(devs,devs->cset,attachdev);
-		}else if (devs->version == BCACHE_SB_VERSION_CDEV || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID){
-			strcpy(attachdev,"N/A");
+		if (strlen(devs->attachuuid) == 36) {
+			cset_to_devname(devs, devs->cset, attachdev);
+		} else if (devs->version == BCACHE_SB_VERSION_CDEV
+			   || devs->version ==
+			   BCACHE_SB_VERSION_CDEV_WITH_UUID) {
+			strcpy(attachdev, "N/A");
 		} else {
-			strcpy(attachdev,"alone");
+			strcpy(attachdev, "alone");
 		}
-		printf("%s",attachdev);
+		printf("%s", attachdev);
 		putchar('\n');
 
 		devs = devs->next;
@@ -234,116 +251,154 @@ int show_bdevs(){
 	return 0;
 }
 
-int detail(char *devname){
+int detail(char *devname)
+{
 	struct bdev bd;
 	struct cdev cd;
-	int type =1;
-	int rt;
-	rt = detail_dev(devname,&bd,&cd,&type);
-	if (rt != 0) {
-		fprintf(stderr,"err occur ,rt is %d",rt);
-		return rt;
+	int type = 1;
+	int ret;
+	ret = detail_dev(devname, &bd, &cd, &type);
+	if (ret != 0) {
+		fprintf(stderr, "failed to detail device\n", devname);
+		return ret;
 	}
-	if (type==BCACHE_SB_VERSION_BDEV) {
-		printf("sb.magic\t\t%s\n",bd.base.magic);
-		printf("sb.first_sector\t\t%" PRIu64 "\n", bd.base.first_sector);
+	if (type == BCACHE_SB_VERSION_BDEV) {
+		printf("sb.magic\t\t%s\n", bd.base.magic);
+		printf("sb.first_sector\t\t%" PRIu64 "\n",
+		       bd.base.first_sector);
 		printf("sb.csum\t\t\t%" PRIX64 "\n", bd.base.csum);
-		printf("sb.version\t\t%" PRIu64 "\n", bd.base.version);
+		printf("sb.version\t\t%" PRIu64, bd.base.version);
+		printf(" [backing device]");
 		putchar('\n');
-		printf("dev.label\t\t%s\n",bd.base.label);
+		printf("dev.label\t\t%s\n", bd.base.label);
 		printf("dev.uuid\t\t%s\n", bd.base.uuid);
 		printf("dev.sectors_per_block\t%u\n"
-               		"dev.sectors_per_bucket\t%u\n",
-               		bd.base.sectors_per_block,
-               		bd.base.sectors_per_bucket);
+		       "dev.sectors_per_bucket\t%u\n",
+		       bd.base.sectors_per_block,
+		       bd.base.sectors_per_bucket);
 		printf("dev.data.first_sector\t%ju\n"
-                       "dev.data.cache_mode\t%ju\n",
-                       bd.first_sector,
-                       bd.cache_mode);
-		printf("dev.data.cache_state\t%ju\n",
-                       bd.cache_state);
+		       "dev.data.cache_mode\t%ju",
+		       bd.first_sector, bd.cache_mode);
+		switch (bd.cache_mode) {
+		case CACHE_MODE_WRITETHROUGH:
+			printf(" [writethrough]\n");
+			break;
+		case CACHE_MODE_WRITEBACK:
+			printf(" [writeback]\n");
+			break;
+		case CACHE_MODE_WRITEAROUND:
+			printf(" [writearound]\n");
+			break;
+		case CACHE_MODE_NONE:
+			printf(" [no caching]\n");
+			break;
+		default:
+			putchar('\n');
+		}
+		printf("dev.data.cache_state\t%ju", bd.cache_state);
+		switch (bd.cache_state) {
+		case BDEV_STATE_NONE:
+			printf(" [detached]\n");
+			break;
+		case BDEV_STATE_CLEAN:
+			printf(" [clean]\n");
+			break;
+		case BDEV_STATE_DIRTY:
+			printf(" [dirty]\n");
+			break;
+		case BDEV_STATE_STALE:
+			printf(" [inconsistent]\n");
+			break;
+		default:
+			putchar('\n');
+		}
+
 		putchar('\n');
 		printf("cset.uuid\t\t%s\n", bd.base.cset);
-	}else if (type ==BCACHE_SB_VERSION_CDEV || type == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-		printf("that is %s",cd.base.uuid);
-		printf("sb.magic\t\t%s\n",cd.base.magic);
-		printf("sb.first_sector\t\t%" PRIu64 "\n", cd.base.first_sector);
+	} else if (type == BCACHE_SB_VERSION_CDEV
+		   || type == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
+		printf("that is %s", cd.base.uuid);
+		printf("sb.magic\t\t%s\n", cd.base.magic);
+		printf("sb.first_sector\t\t%" PRIu64 "\n",
+		       cd.base.first_sector);
 		printf("sb.csum\t\t\t%" PRIX64 "\n", cd.base.csum);
-		printf("sb.version\t\t%" PRIu64 , cd.base.version);
+		printf("sb.version\t\t%" PRIu64, cd.base.version);
 		printf(" [cache device]\n");
 		putchar('\n');
-		printf("dev.label\t\t%s\n",cd.base.label);
+		printf("dev.label\t\t%s\n", cd.base.label);
 		printf("dev.uuid\t\t%s\n", cd.base.uuid);
 		printf("dev.sectors_per_block\t%u\n"
-               		"dev.sectors_per_bucket\t%u\n",
-               		cd.base.sectors_per_block,
-               		cd.base.sectors_per_bucket);
+		       "dev.sectors_per_bucket\t%u\n",
+		       cd.base.sectors_per_block,
+		       cd.base.sectors_per_bucket);
 		printf("dev.cache.first_sector\t%u\n"
-                       "dev.cache.cache_sectors\t%ju\n"
-                       "dev.cache.total_sectors\t%ju\n"
-                       "dev.cache.ordered\t%s\n"
-                       "dev.cache.discard\t%s\n"
-                       "dev.cache.pos\t\t%u\n"
-                       "dev.cache.replacement\t%d",
-                       cd.first_sector,
-                       cd.cache_sectors,
-                       cd.total_sectors,
-                       cd.ordered ? "yes":"no",
-                       cd.discard ? "yes":"no",
-                       cd.pos,
-                       cd.replacement);
-		 switch (cd.replacement) {
-                        case CACHE_REPLACEMENT_LRU:
-                                printf(" [lru]\n");
-                                break;
-                        case CACHE_REPLACEMENT_FIFO:
-                                printf(" [fifo]\n");
-                                break;
-                        case CACHE_REPLACEMENT_RANDOM:
-                                printf(" [random]\n");
-                                break;
-                        default:
-                                putchar('\n');
-                }
+		       "dev.cache.cache_sectors\t%ju\n"
+		       "dev.cache.total_sectors\t%ju\n"
+		       "dev.cache.ordered\t%s\n"
+		       "dev.cache.discard\t%s\n"
+		       "dev.cache.pos\t\t%u\n"
+		       "dev.cache.replacement\t%d",
+		       cd.first_sector,
+		       cd.cache_sectors,
+		       cd.total_sectors,
+		       cd.ordered ? "yes" : "no",
+		       cd.discard ? "yes" : "no", cd.pos, cd.replacement);
+		switch (cd.replacement) {
+		case CACHE_REPLACEMENT_LRU:
+			printf(" [lru]\n");
+			break;
+		case CACHE_REPLACEMENT_FIFO:
+			printf(" [fifo]\n");
+			break;
+		case CACHE_REPLACEMENT_RANDOM:
+			printf(" [random]\n");
+			break;
+		default:
+			putchar('\n');
+		}
 
 		putchar('\n');
 		printf("cset.uuid\t\t%s\n", cd.base.cset);
-	}else{
-		printf("type is %d",type);
+	} else {
+		printf("type is %d", type);
 	}
 }
 
-int tree(){
+int tree()
+{
 	printf(".\n");
-	struct dev *devs=NULL;
-	struct dev *prev,*tmp;
-	int rt;
-        rt =list_bdevs(&devs);
-	if (rt != 0){
-		fprintf(stderr,"result is non-zero:%d",rt);
-		return rt;
+	struct dev *devs = NULL;
+	struct dev *prev, *tmp;
+	int ret;
+	ret = list_bdevs(&devs);
+	if (ret != 0) {
+		fprintf(stderr, "result is non-zero:%d", ret);
+		return ret;
 	}
-	prev = devs;	
+	prev = devs;
 	tmp = devs;
-	while (devs){
-		if ((devs->version == BCACHE_SB_VERSION_CDEV || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID) && strcmp(devs->state,"active") == 0 ){
-			printf("%s",devs->name);
+	while (devs) {
+		if ((devs->version == BCACHE_SB_VERSION_CDEV
+		     || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID)
+		    && strcmp(devs->state, "active") == 0) {
+			printf("%s", devs->name);
 			while (tmp) {
-				if (strcmp(devs->cset,tmp->attachuuid)==0){
+				if (strcmp(devs->cset, tmp->attachuuid) ==
+				    0) {
 					putchar('\n');
 					putchar(124);
 					putchar(45);
 					putchar(45);
 					putchar(45);
-					printf("%s",tmp->name);
+					printf("%s", tmp->name);
 					putchar(45);
 					putchar(45);
 					putchar(45);
-					printf("%s",tmp->bname);
+					printf("%s", tmp->bname);
 				}
-				tmp=tmp->next;
+				tmp = tmp->next;
 			}
-			tmp=prev;
+			tmp = prev;
 			putchar('\n');
 		}
 		devs = devs->next;
@@ -351,150 +406,156 @@ int tree(){
 	free_dev(prev);
 }
 
-int attach_both(char *cdev,char *backdev){
+int attach_both(char *cdev, char *backdev)
+{
 	struct bdev bd;
 	struct cdev cd;
-	int type =1;
-	int rt;
+	int type = 1;
+	int ret;
 	char buf[100];
-	rt = detail_dev(backdev,&bd,&cd,&type);
-	if (rt < 0){
-		return rt;
+	ret = detail_dev(backdev, &bd, &cd, &type);
+	if (ret < 0) {
+		return ret;
 	}
-	if (type != BCACHE_SB_VERSION_BDEV && type != BCACHE_SB_VERSION_BDEV_WITH_OFFSET){
-		fprintf(stderr,"%s is not an backend device",backdev);
+	if (type != BCACHE_SB_VERSION_BDEV
+	    && type != BCACHE_SB_VERSION_BDEV_WITH_OFFSET) {
+		fprintf(stderr, "%s is not an backend device", backdev);
 		return 1;
 	}
-	if (strcmp(bd.base.attachuuid,"alone") != 0 ){
-		fprintf(stderr,"this device have attached to another cset\n");
+	if (strcmp(bd.base.attachuuid, "alone") != 0) {
+		fprintf(stderr,
+			"this device have attached to another cset\n");
 		return 1;
 	}
 
-	if (strlen(cdev)!=36){
-		rt = detail_dev(cdev,&bd,&cd,&type);
-		if (type != BCACHE_SB_VERSION_CDEV && type != BCACHE_SB_VERSION_CDEV_WITH_UUID){
-			fprintf(stderr,"%s is not an cache device",cdev);
+	if (strlen(cdev) != 36) {
+		ret = detail_dev(cdev, &bd, &cd, &type);
+		if (type != BCACHE_SB_VERSION_CDEV
+		    && type != BCACHE_SB_VERSION_CDEV_WITH_UUID) {
+			fprintf(stderr, "%s is not an cache device", cdev);
 			return 1;
 		}
-		strcpy(buf,cd.base.cset);	
-	}else{
-		strcpy(buf,cdev);	
+		strcpy(buf, cd.base.cset);
+	} else {
+		strcpy(buf, cdev);
 	}
-	return attach(buf,backdev);
+	return attach(buf, backdev);
 }
 
-int main(int argc, char **argv) 
+int main(int argc, char **argv)
 {
 	char *subcmd;
-	if (argc < 2){
-	    ctlusage();
-	    return 1;
-  	}else{
+	if (argc < 2) {
+		ctlusage();
+		return 1;
+	} else {
 		subcmd = argv[1];
 		argc--;
-		argv+=1;
+		argv += 1;
 	}
 
-	if (strcmp(subcmd,"make")==0) {
-		return make_bcache(argc,argv);
+	if (strcmp(subcmd, "make") == 0) {
+		return make_bcache(argc, argv);
 
-	} else if(strcmp(subcmd,"show")==0){
+	} else if (strcmp(subcmd, "show") == 0) {
 		int ret;
-		int o=0;
+		int o = 0;
 		char *devname;
-		int more =0;
-		int device=0;
-		int help=0;
-		
-		while((o = getopt(argc,argv,"hod:")) != EOF){
-			switch(o){
-				case 'd':
-					devname=optarg;
-					device=1;
-					break;
-				case 'o':
-					more=1;
-					break;
-				case 'h':
-					help=1;
-					break;
+		int more = 0;
+		int device = 0;
+		int help = 0;
+
+		while ((o = getopt(argc, argv, "hod:")) != EOF) {
+			switch (o) {
+			case 'd':
+				devname = optarg;
+				device = 1;
+				break;
+			case 'o':
+				more = 1;
+				break;
+			case 'h':
+				help = 1;
+				break;
 			}
 		}
-		if (device){
+		if (device) {
 			return detail(devname);
-		} else if (more){
+		} else if (more) {
 			return show_bdevs_detail();
-		} else if (help || argc != 1){
+		} else if (help || argc != 1) {
 			return showusage();
-		}else{
+		} else {
 			return show_bdevs();
 		}
-	} else if(strcmp(subcmd,"tree")==0){
-		if(argc != 1){
+	} else if (strcmp(subcmd, "tree") == 0) {
+		if (argc != 1) {
 			return treeusage();
 		}
 		return tree();
-	} else if(strcmp(subcmd,"regist")==0){
-		if (argc != 2 ||strcmp(argv[1],"-h")==0){
+	} else if (strcmp(subcmd, "regist") == 0) {
+		if (argc != 2 || strcmp(argv[1], "-h") == 0) {
 			return registusage();
 		}
-		if (bad_dev(argv[1])){
-			fprintf(stderr,"Error:wrong device name found\n");
+		if (bad_dev(argv[1])) {
+			fprintf(stderr, "Error:wrong device name found\n");
 			return 1;
 		}
 		return regist(argv[1]);
-	} else if(strcmp(subcmd,"unregist")==0){
-		if (argc != 2 ||strcmp(argv[1],"-h")==0){
+	} else if (strcmp(subcmd, "unregist") == 0) {
+		if (argc != 2 || strcmp(argv[1], "-h") == 0) {
 			return unregistusage();
 		}
-		if (bad_dev(argv[1])){
-			fprintf(stderr,"Error:wrong device name found\n");
+		if (bad_dev(argv[1])) {
+			fprintf(stderr, "Error:wrong device name found\n");
 			return 1;
 		}
 		struct bdev bd;
 		struct cdev cd;
-		int type =1;
-		int rt;
-		rt = detail_dev(argv[1],&bd,&cd,&type);
-		if (rt != 0) {
-			return rt;
+		int type = 1;
+		int ret;
+		ret = detail_dev(argv[1], &bd, &cd, &type);
+		if (ret != 0) {
+			return ret;
 		}
-		if (type==BCACHE_SB_VERSION_BDEV) {
-			return stop_backdev(argv[1]);	
-		}else if (type ==BCACHE_SB_VERSION_CDEV || type == BCACHE_SB_VERSION_CDEV_WITH_UUID){
+		if (type == BCACHE_SB_VERSION_BDEV) {
+			return stop_backdev(argv[1]);
+		} else if (type == BCACHE_SB_VERSION_CDEV
+			   || type == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
 			return unregist_cset(cd.base.cset);
 		}
 		return 1;
-	} else if(strcmp(subcmd,"attach")==0){
-		if (argc != 3 || strcmp(argv[1],"-h")==0){
+	} else if (strcmp(subcmd, "attach") == 0) {
+		if (argc != 3 || strcmp(argv[1], "-h") == 0) {
 			return attachusage();
 		}
-		if (bad_dev(argv[1]) && bad_uuid(argv[1]) || bad_dev(argv[2])){
-			fprintf(stderr,"Error:wrong device name or uuid found\n");
+		if (bad_dev(argv[1]) && bad_uuid(argv[1])
+		    || bad_dev(argv[2])) {
+			fprintf(stderr,
+				"Error:wrong device name or uuid found\n");
 			return 1;
 		}
-		return attach_both(argv[1],argv[2]);
-	} else if(strcmp(subcmd,"detach")==0){
-		if (argc != 2 || strcmp(argv[1],"-h")==0){
+		return attach_both(argv[1], argv[2]);
+	} else if (strcmp(subcmd, "detach") == 0) {
+		if (argc != 2 || strcmp(argv[1], "-h") == 0) {
 			return detachusage();
 		}
-		if (bad_dev(argv[1])){
-			fprintf(stderr,"Error:wrong device name found\n");
+		if (bad_dev(argv[1])) {
+			fprintf(stderr, "Error:wrong device name found\n");
 			return 1;
 		}
 		return detach(argv[1]);
-	}else if(strcmp(subcmd,"set-cachemode")==0){
-		if (argc != 3){
+	} else if (strcmp(subcmd, "set-cachemode") == 0) {
+		if (argc != 3) {
 			return setcachemodeusage();
 		}
-		if (bad_dev(argv[1])){
-			fprintf(stderr,"Error:wrong device name found\n");
+		if (bad_dev(argv[1])) {
+			fprintf(stderr, "Error:wrong device name found\n");
 			return 1;
 		}
-		return set_backdev_cachemode(argv[1],argv[2]);
-	}else{
+		return set_backdev_cachemode(argv[1], argv[2]);
+	} else {
 		ctlusage();
 	}
 	return 0;
 }
-
