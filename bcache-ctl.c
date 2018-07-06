@@ -10,6 +10,9 @@
 #include "make-bcache.h"
 #include "bcache.h"
 #include "lib.h"
+#include "libsmartcols/libsmartcols.h"
+#include <locale.h>
+
 
 //utils function
 bool bad_uuid(char *uuid)
@@ -368,7 +371,6 @@ int detail(char *devname)
 
 int tree()
 {
-	printf(".\n");
 	struct dev *devs = NULL;
 	struct dev *prev, *tmp;
 	int ret;
@@ -379,32 +381,37 @@ int tree()
 	}
 	prev = devs;
 	tmp = devs;
+	struct libscols_table *tb;
+	struct libscols_line *ln, *dad, *gdad;
+	enum { COL_NAME, COL_AGE };
+	setlocale(LC_ALL, "");
+	tb = scols_new_table();
+	scols_table_new_column(tb, ".", 0.1, SCOLS_FL_TREE);
+	scols_table_new_column(tb, "", 2, SCOLS_FL_TRUNC);
 	while (devs) {
 		if ((devs->version == BCACHE_SB_VERSION_CDEV
 		     || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID)
 		    && strcmp(devs->state, "active") == 0) {
-			printf("%s", devs->name);
+			ln = gdad = scols_table_new_line(tb, NULL);
+			scols_line_set_data(ln, COL_NAME, devs->name);
 			while (tmp) {
 				if (strcmp(devs->cset, tmp->attachuuid) ==
 				    0) {
-					putchar('\n');
-					putchar(124);
-					putchar(45);
-					putchar(45);
-					putchar(45);
-					printf("%s", tmp->name);
-					putchar(45);
-					putchar(45);
-					putchar(45);
-					printf("%s", tmp->bname);
+					ln = dad =
+					    scols_table_new_line(tb, gdad);
+					scols_line_set_data(ln, COL_NAME,
+							    tmp->name);
+					scols_line_set_data(ln, COL_AGE,
+							    tmp->bname);
 				}
 				tmp = tmp->next;
 			}
 			tmp = prev;
-			putchar('\n');
 		}
 		devs = devs->next;
 	}
+	scols_print_table(tb);
+	scols_unref_table(tb);
 	free_dev(prev);
 }
 

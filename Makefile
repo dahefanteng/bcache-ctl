@@ -1,6 +1,6 @@
 .PHONY: clean
-CFLAGS+=`pkg-config --cflags blkid uuid`
-LDFLAGS+=`pkg-config --libs blkid uuid`
+CFLAGS+=`pkg-config --cflags blkid uuid smartcols`
+LDFLAGS+=`pkg-config --libs blkid uuid smartcols`
 
 all:depend bcache-ctl 
 
