@@ -155,23 +155,23 @@ int get_backdev_attachpoint(char *devname, char *point)
 	return 0;
 }
 
-int cset_to_devname(struct dev *devs, char *cset, char *devname)
+int cset_to_devname(struct list_head *head, char *cset, char *devname)
 {
-	while (devs) {
-		if ((devs->version == BCACHE_SB_VERSION_CDEV
-		     || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID)
-		    && strcmp(devs->cset, cset) == 0) {
-			strcpy(devname, devs->name);
-			break;
+	struct dev *dev;
+	list_for_each_entry(dev, head, dev_list) {
+		if ((dev->version == BCACHE_SB_VERSION_CDEV
+		     || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID)
+		    && strcmp(dev->cset, cset) == 0) {
+			strcpy(devname, dev->name);
 		}
-		devs = devs->next;
 	}
+	return 0;
 }
 
 
 
 
-int list_bdevs(struct dev **devs)
+int list_bdevs(struct list_head *head)
 {
 	DIR *dir;
 	struct dirent *ptr;
@@ -207,25 +207,13 @@ int list_bdevs(struct dev **devs)
 
 		struct dev *tmp, *current;
 		int ret;
-		if (*devs) {
-			tmp = (struct dev *) malloc(DEVLEN);
-			ret = detail_base(dev, sb, tmp);
-			if (ret != 0) {
-				printf("error occur");
-				return 1;
-			} else {
-				current->next = tmp;
-				current = tmp;
-			}
+		tmp = (struct dev *) malloc(DEVLEN);
+		ret = detail_base(dev, sb, tmp);
+		if (ret != 0) {
+			printf("error occur");
+			return 1;
 		} else {
-			tmp = (struct dev *) malloc(DEVLEN);
-			ret = detail_base(dev, sb, tmp);
-			if (ret != 0) {
-				printf("error occur");
-				return 1;
-			}
-			current = tmp;
-			*devs = tmp;
+			list_add_tail(&tmp->dev_list, head);
 		}
 	}
 	closedir(dir);

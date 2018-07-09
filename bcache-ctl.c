@@ -12,6 +12,7 @@
 #include "lib.h"
 #include "libsmartcols/libsmartcols.h"
 #include <locale.h>
+#include "list.h"
 
 
 //utils function
@@ -121,31 +122,30 @@ int setcachemodeusage()
 }
 
 
-void free_dev(struct dev *devs)
+void free_dev(struct list_head *head)
 {
-	struct dev *tmp;
-	while (devs) {
-		tmp = devs;
-		devs = devs->next;
-		free(tmp);
+	struct dev *dev;
+	list_for_each_entry(dev, head, dev_list) {
+		free(dev);
 	}
 }
 
 int show_bdevs_detail()
 {
-	struct dev *devs = NULL;
-	struct dev *prev;
+	struct list_head head;
+	struct dev *devs;
+	INIT_LIST_HEAD(&head);
 	int ret;
-	ret = list_bdevs(&devs);
+
+	ret = list_bdevs(&head);
 	if (ret != 0) {
 		fprintf(stderr, "result  is non-zero:%d", ret);
 		return ret;
 	}
-	prev = devs;
 	printf
 	    ("Name\t\tUuid\t\t\t\t\tCset_Uuid\t\t\t\tType\t\tState\t\tBname\t\tAttachToDev\tAttachToCset\n");
 	char state[20];
-	while (devs) {
+	list_for_each_entry(devs, &head, dev_list) {
 		printf("%s\t%s\t%s\t%d", devs->name, devs->uuid,
 		       devs->cset, devs->version);
 		switch (devs->version) {
@@ -175,7 +175,7 @@ int show_bdevs_detail()
 
 		char attachdev[30];
 		if (strlen(devs->attachuuid) == 36) {
-			cset_to_devname(devs, devs->cset, attachdev);
+			cset_to_devname(&head, devs->cset, attachdev);
 		} else if (devs->version == BCACHE_SB_VERSION_CDEV
 			   || devs->version ==
 			   BCACHE_SB_VERSION_CDEV_WITH_UUID) {
@@ -188,21 +188,19 @@ int show_bdevs_detail()
 		//TODU:adjust the distance between two lines
 		printf("%s", devs->attachuuid);
 		putchar('\n');
-
-		devs = devs->next;
 	}
-	free_dev(prev);
+	free_dev(&head);
 	return 0;
 }
 
 
 int show_bdevs()
 {
-	struct dev *devs = NULL;
-	struct dev *prev;
-	prev = devs;
+	struct list_head head;
+	struct dev *devs;
+	INIT_LIST_HEAD(&head);
 	int ret;
-	ret = list_bdevs(&devs);
+	ret = list_bdevs(&head);
 	if (ret != 0) {
 		fprintf(stderr, "result is non-zero:%d", ret);
 		return ret;
@@ -210,7 +208,7 @@ int show_bdevs()
 
 	printf("Name\t\tType\t\tState\t\tBname\t\tAttachToDev\n");
 	char state[20];
-	while (devs) {
+	list_for_each_entry(devs, &head, dev_list) {
 		printf("%s\t%d", devs->name, devs->version);
 		switch (devs->version) {
 			// These are handled the same by the kernel
@@ -239,7 +237,7 @@ int show_bdevs()
 
 		char attachdev[30];
 		if (strlen(devs->attachuuid) == 36) {
-			cset_to_devname(devs, devs->cset, attachdev);
+			cset_to_devname(&head, devs->cset, attachdev);
 		} else if (devs->version == BCACHE_SB_VERSION_CDEV
 			   || devs->version ==
 			   BCACHE_SB_VERSION_CDEV_WITH_UUID) {
@@ -249,10 +247,8 @@ int show_bdevs()
 		}
 		printf("%s", attachdev);
 		putchar('\n');
-
-		devs = devs->next;
 	}
-	free_dev(prev);
+	free_dev(&head);
 	return 0;
 }
 
@@ -371,16 +367,16 @@ int detail(char *devname)
 
 int tree()
 {
-	struct dev *devs = NULL;
-	struct dev *prev, *tmp;
+	struct list_head head;
+	struct list_head head1;
+	struct dev *devs, *tmp;
+	INIT_LIST_HEAD(&head);
 	int ret;
-	ret = list_bdevs(&devs);
+	ret = list_bdevs(&head);
 	if (ret != 0) {
 		fprintf(stderr, "result is non-zero:%d", ret);
 		return ret;
 	}
-	prev = devs;
-	tmp = devs;
 	struct libscols_table *tb;
 	struct libscols_line *ln, *dad, *gdad;
 	enum { COL_NAME, COL_AGE };
@@ -388,13 +384,13 @@ int tree()
 	tb = scols_new_table();
 	scols_table_new_column(tb, ".", 0.1, SCOLS_FL_TREE);
 	scols_table_new_column(tb, "", 2, SCOLS_FL_TRUNC);
-	while (devs) {
+	list_for_each_entry(devs, &head, dev_list) {
 		if ((devs->version == BCACHE_SB_VERSION_CDEV
 		     || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID)
 		    && strcmp(devs->state, "active") == 0) {
 			ln = gdad = scols_table_new_line(tb, NULL);
 			scols_line_set_data(ln, COL_NAME, devs->name);
-			while (tmp) {
+			list_for_each_entry(tmp, &head, dev_list) {
 				if (strcmp(devs->cset, tmp->attachuuid) ==
 				    0) {
 					ln = dad =
@@ -404,15 +400,12 @@ int tree()
 					scols_line_set_data(ln, COL_AGE,
 							    tmp->bname);
 				}
-				tmp = tmp->next;
 			}
-			tmp = prev;
 		}
-		devs = devs->next;
 	}
 	scols_print_table(tb);
 	scols_unref_table(tb);
-	free_dev(prev);
+	free_dev(&head);
 }
 
 int attach_both(char *cdev, char *backdev)

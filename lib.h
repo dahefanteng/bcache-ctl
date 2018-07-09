@@ -1,3 +1,5 @@
+#include "list.h"
+
 struct dev {
 	char name[40];
 	char *magic;
@@ -12,7 +14,7 @@ struct dev {
 	char state[40];
 	char bname[40];
 	char attachuuid[40];
-	struct dev *next;
+	struct list_head dev_list;
 };
 
 struct bdev {
@@ -35,7 +37,7 @@ struct cdev {
 };
 
 
-int list_bdevs(struct dev **);
+int list_bdevs(struct list_head *head);
 int detail_dev(char *devname, struct bdev *bd, struct cdev *cd, int *type);
 int registe(char *devname);
 int stop_backdev(char *devname);
