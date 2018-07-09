@@ -65,7 +65,7 @@ int get_backdev_state(char *devname, char *state)
 	sprintf(path, "/sys/block/%s/bcache/state", buf);
 	fd = fopen(path, "r");
 	if (fd == NULL) {
-		strcpy(state, BCACHE_BASIC_STATE_ACTIVE);
+		strcpy(state, BCACHE_BASIC_STATE_INACTIVE);
 		return 0;
 	}
 	int i = 0;
