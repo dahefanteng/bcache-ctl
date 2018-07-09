@@ -3,9 +3,14 @@ Integrate multi tools to a single one. Display the output in a more readable way
 
 # Install 
 - 1. Inatall the dependence. 
+    For Centos:
     ```shell
 	#yum install centos-release-yum4 -y 
 	#yum install libblkid libblkid-devel libuuid libuuid-devel libsmartcols libsmartcols-devel -y
+    ```
+    For OpenSUSE:
+    ```shell
+	#zypper install libblkid libblkid-devel libuuid libuuid-devel libsmartcols libsmartcols-devel 
     ```
 - 2. Clone the repo.
     ```shell 
