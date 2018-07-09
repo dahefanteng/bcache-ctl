@@ -61,11 +61,11 @@ int get_backdev_state(char *devname, char *state)
 	FILE *fd;
 	char path[100];
 	char buf[40];
-	trim_prefix(buf, devname, 5);
+	trim_prefix(buf, devname, DEV_PREFIX_LEN);
 	sprintf(path, "/sys/block/%s/bcache/state", buf);
 	fd = fopen(path, "r");
 	if (fd == NULL) {
-		strcpy(state, "inactive");
+		strcpy(state, BCACHE_BASIC_STATE_ACTIVE);
 		return 0;
 	}
 	int i = 0;
@@ -84,9 +84,9 @@ int get_cachedev_state(char *cset_id, char *state)
 	sprintf(path, "/sys/fs/bcache/%s/unregister", cset_id);
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
-		strcpy(state, "inactive");
+		strcpy(state, BCACHE_BASIC_STATE_INACTIVE);
 	} else {
-		strcpy(state, "active");
+		strcpy(state, BCACHE_BASIC_STATE_ACTIVE);
 	}
 	return 0;
 }
@@ -110,7 +110,7 @@ int get_dev_bname(char *devname, char *bname)
 	char buf[40];
 	char link[100];
 	char buf1[100];
-	trim_prefix(buf, devname, 5);
+	trim_prefix(buf, devname, DEV_PREFIX_LEN);
 	sprintf(path, "/sys/block/%s/bcache/dev", buf);
 	ret = readlink(path, link, sizeof(link));
 	if (ret < 0) {
@@ -142,7 +142,7 @@ int get_backdev_attachpoint(char *devname, char *point)
 	char link[100];
 	char uuid[40];
 	char buf1[100];
-	trim_prefix(buf, devname, 5);
+	trim_prefix(buf, devname, DEV_PREFIX_LEN);
 	sprintf(path, "/sys/block/%s/bcache/cache", buf);
 	ret = readlink(path, link, sizeof(link));
 	if (ret < 0) {
@@ -411,7 +411,7 @@ int stop_backdev(char *devname)
 	char path[100];
 	int fd;
 	char buf[20];
-	trim_prefix(buf, devname, 5);
+	trim_prefix(buf, devname, DEV_PREFIX_LEN);
 	sprintf(path, "/sys/block/%s/bcache/stop", buf);
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
@@ -446,7 +446,7 @@ int attach(char *cset, char *devname)
 {
 	int fd;
 	char buf[20];
-	trim_prefix(buf, devname, 5);
+	trim_prefix(buf, devname, DEV_PREFIX_LEN);
 	char path[100];
 	sprintf(path, "/sys/block/%s/bcache/attach", buf);
 	fd = open(path, O_WRONLY);
@@ -466,7 +466,7 @@ int detach(char *devname)
 {
 	int fd;
 	char buf[20];
-	trim_prefix(buf, devname, 5);
+	trim_prefix(buf, devname, DEV_PREFIX_LEN);
 	char path[100];
 	sprintf(path, "/sys/block/%s/bcache/detach", buf);
 	fd = open(path, O_WRONLY);
@@ -488,7 +488,7 @@ int set_backdev_cachemode(char *devname, char *cachemode)
 	int fd;
 	char path[100];
 	char buf[20];
-	trim_prefix(buf, devname, 5);
+	trim_prefix(buf, devname, DEV_PREFIX_LEN);
 	sprintf(path, "/sys/block/%s/bcache/cache_mode", buf);
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {

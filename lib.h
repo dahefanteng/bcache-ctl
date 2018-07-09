@@ -39,11 +39,15 @@ struct cdev {
 
 int list_bdevs(struct list_head *head);
 int detail_dev(char *devname, struct bdev *bd, struct cdev *cd, int *type);
-int registe(char *devname);
+int regist(char *devname);
 int stop_backdev(char *devname);
-int unregiste_cset(char *cset);
+int unregist_cset(char *cset);
 int attach(char *cset, char *devname);
 int detach(char *devname);
+int set_backdev_cachemode(char *devname, char *cachemode);
 
 
 #define DEVLEN sizeof(struct dev)
+#define BCACHE_BASIC_STATE_ACTIVE	"active"
+#define BCACHE_BASIC_STATE_INACTIVE	"inactive"
+#define DEV_PREFIX_LEN	5
