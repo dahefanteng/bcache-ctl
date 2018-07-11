@@ -31,17 +31,11 @@ static void get_tail(char *dest, char *src, int n)
 	dest[i] = '\0';
 }
 
-static void trim_tail(char *dest, char *src, int n)
+static void trim_tail(char *src, int n)
 {
-
-
-	int num, i;
+	int num;
 	num = strlen(src);
-
-	for (i = 0; i < num - n; i++) {
-		dest[i] = src[i];
-	}
-	dest[i] = '\0';
+	src[num - n] = '\0';
 }
 
 int get_state(struct dev *dev, char *state)
@@ -79,15 +73,16 @@ int get_backdev_state(char *devname, char *state)
 
 int get_cachedev_state(char *cset_id, char *state)
 {
-	int fd;
+	DIR *dir = NULL;
 	char path[100];
-	sprintf(path, "/sys/fs/bcache/%s/unregister", cset_id);
-	fd = open(path, O_WRONLY);
-	if (fd < 0) {
+	sprintf(path, "/sys/fs/bcache/%s/", cset_id);
+	dir = opendir(path);
+	if (dir == NULL) {
 		strcpy(state, BCACHE_BASIC_STATE_INACTIVE);
 	} else {
 		strcpy(state, BCACHE_BASIC_STATE_ACTIVE);
 	}
+	closedir(dir);
 	return 0;
 }
 
@@ -95,7 +90,7 @@ int get_bname(struct dev *dev, char *bname)
 {
 	if (dev->version == BCACHE_SB_VERSION_CDEV
 	    || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-		strcpy(bname, "N/A");
+		strcpy(bname, BCACHE_NO_SUPPORT);
 	} else if (dev->version == BCACHE_SB_VERSION_BDEV
 		   || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET) {
 		return get_dev_bname(dev->name, bname);
@@ -109,15 +104,14 @@ int get_dev_bname(char *devname, char *bname)
 	char path[100];
 	char buf[40];
 	char link[100];
-	char buf1[100];
 	trim_prefix(buf, devname, DEV_PREFIX_LEN);
 	sprintf(path, "/sys/block/%s/bcache/dev", buf);
 	ret = readlink(path, link, sizeof(link));
 	if (ret < 0) {
-		strcpy(bname, "non-exsit");
+		strcpy(bname, BCACHE_BNAME_NOT_EXIST);
 	} else {
-		trim_tail(buf1, link, strlen(link) - ret);
-		strcpy(bname, buf1 + 41);
+		trim_tail(link, strlen(link) - ret);
+		strcpy(bname, link + 41);
 	}
 	return 0;
 }
@@ -126,7 +120,7 @@ int get_point(struct dev *dev, char *point)
 {
 	if (dev->version == BCACHE_SB_VERSION_CDEV
 	    || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-		strcpy(point, "N/A");
+		strcpy(point, BCACHE_NO_SUPPORT);
 	} else if (dev->version == BCACHE_SB_VERSION_BDEV
 		   || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET) {
 		return get_backdev_attachpoint(dev->name, point);
@@ -141,15 +135,14 @@ int get_backdev_attachpoint(char *devname, char *point)
 	char buf[20];
 	char link[100];
 	char uuid[40];
-	char buf1[100];
 	trim_prefix(buf, devname, DEV_PREFIX_LEN);
 	sprintf(path, "/sys/block/%s/bcache/cache", buf);
 	ret = readlink(path, link, sizeof(link));
 	if (ret < 0) {
-		strcpy(point, "alone");
+		strcpy(point, BCACHE_BNAME_NOT_EXIST);
 	} else {
-		trim_tail(buf1, link, strlen(link) - ret);
-		get_tail(uuid, buf1, 36);
+		trim_tail(link, strlen(link) - ret);
+		get_tail(uuid, link, 36);
 		strcpy(point, uuid);
 	}
 	return 0;
@@ -169,8 +162,6 @@ int cset_to_devname(struct list_head *head, char *cset, char *devname)
 }
 
 
-
-
 int list_bdevs(struct list_head *head)
 {
 	DIR *dir;
@@ -178,6 +169,9 @@ int list_bdevs(struct list_head *head)
 	blkid_probe pr;
 	struct cache_sb sb;
 	dir = opendir("/sys/block");
+	if (dir == NULL) {
+		fprintf(stderr, "Unable to open dir /sys/block\n");
+	}
 	while ((ptr = readdir(dir)) != NULL) {
 		if (strcmp(ptr->d_name, ".") == 0
 		    || strcmp(ptr->d_name, "..") == 0) {
@@ -210,70 +204,14 @@ int list_bdevs(struct list_head *head)
 		tmp = (struct dev *) malloc(DEVLEN);
 		ret = detail_base(dev, sb, tmp);
 		if (ret != 0) {
-			printf("error occur");
+			fprintf(stderr,
+				"Failed to get information for %s\n", dev);
 			return 1;
 		} else {
 			list_add_tail(&tmp->dev_list, head);
 		}
 	}
 	closedir(dir);
-	return 0;
-
-}
-
-
-int detail_bdev(char *devname, struct bdev *bd)
-{
-	struct cache_sb sb;
-	uint64_t expected_csum;
-	int fd = open(devname, O_RDONLY);
-	if (fd < 0) {
-		fprintf(stderr,
-			"Can't open dev %s,in function:detail_bdev\n",
-			devname);
-		return 1;
-	}
-
-	if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb)) {
-		fprintf(stderr, "Couldn't read\n");
-		return 1;
-	}
-
-	if (!memcmp(sb.magic, bcache_magic, 16)) {
-		bd->base.magic = "ok";
-	} else {
-		bd->base.magic = "bad magic";
-		return 1;
-	}
-
-	if (sb.offset == SB_SECTOR) {
-		bd->base.first_sector = SB_SECTOR;
-	} else {
-		fprintf(stderr, "Invalid superblock (bad sector)\n");
-		return 1;
-	}
-
-	expected_csum = csum_set(&sb);
-	if (sb.csum == expected_csum) {
-		bd->base.csum = sb.csum;
-	} else {
-		return 1;
-	}
-
-	bd->base.version = sb.version;
-
-	strncpy(bd->base.label, (char *) sb.label, SB_LABEL_SIZE);
-	bd->base.label[SB_LABEL_SIZE] = '\0';
-	if (*bd->base.label)
-		printf("a");
-	else
-		strncpy(bd->base.label, "(empty)", 7);
-
-	uuid_unparse(sb.uuid, bd->base.uuid);
-
-	bd->base.sectors_per_block = sb.block_size;
-	bd->base.sectors_per_bucket = sb.bucket_size;
-	close(fd);
 	return 0;
 }
 
@@ -289,25 +227,22 @@ int detail_base(char *devname, struct cache_sb sb, struct dev *base)
 
 	strncpy(base->label, (char *) sb.label, SB_LABEL_SIZE);
 	base->label[SB_LABEL_SIZE] = '\0';
-	if (*base->label)
-		printf("a");
-	else
-		strncpy(base->label, "(empty)", sizeof(base->label));
 
 	uuid_unparse(sb.uuid, base->uuid);
 	uuid_unparse(sb.set_uuid, base->cset);
 	base->sectors_per_block = sb.block_size;
 	base->sectors_per_bucket = sb.bucket_size;
 	if ((ret = get_state(base, base->state)) != 0) {
-		printf("err when get state");
+		fprintf(stderr, "Failed to get state for %s\n", devname);
 		return ret;
 	}
 	if ((ret = get_bname(base, base->bname)) != 0) {
-		printf("err when get bname");
+		fprintf(stderr, "Failed to get bname for %s\n", devname);
 		return ret;
 	}
 	if ((ret = get_point(base, base->attachuuid)) != 0) {
-		printf("err when get attach");
+		fprintf(stderr, "Failed to get attachuuid for  %s\n",
+			devname);
 		return ret;
 	}
 	return 0;
@@ -325,24 +260,24 @@ int detail_dev(char *devname, struct bdev *bd, struct cdev *cd, int *type)
 
 	if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb)) {
 		fprintf(stderr, "Couldn't read\n");
-		return 1;
+		goto Fail;
 	}
 
 	if (memcmp(sb.magic, bcache_magic, 16)) {
 		fprintf(stderr,
 			"Bad magic,make sure this is an bcache device\n");
-		return 1;
+		goto Fail;
 	}
 
 	if (!sb.offset == SB_SECTOR) {
 		fprintf(stderr, "Invalid superblock (bad sector)\n");
-		return 1;
+		goto Fail;
 	}
 
 	expected_csum = csum_set(&sb);
 	if (!sb.csum == expected_csum) {
 		fprintf(stderr, "Csum is not match with expected one");
-		return 1;
+		goto Fail;
 	}
 
 	*type = sb.version;
@@ -363,10 +298,13 @@ int detail_dev(char *devname, struct bdev *bd, struct cdev *cd, int *type)
 		cd->pos = sb.nr_this_dev;
 		cd->replacement = CACHE_REPLACEMENT(&sb);
 	} else {
-		fprintf(stderr, "unknown bcache device type found");
-		return 1;
+		fprintf(stderr, "Unknown bcache device type found");
+		goto Fail;
 	}
 	return 0;
+      Fail:
+	close(fd);
+	return 1;
 }
 
 int regist(char *devname)
@@ -382,6 +320,7 @@ int regist(char *devname)
 	if (dprintf(fd, "%s\n", devname) < 0) {
 		fprintf(stderr, "Error registering %s with bcache: %m\n",
 			devname);
+		close(fd);
 		return 1;
 	}
 	close(fd);
@@ -400,9 +339,10 @@ int unregist_cset(char *cset)
 	}
 	if (dprintf(fd, "%d\n", 1) < 0) {
 		fprintf(stderr, "Failed to unregist this cache device");
+		close(fd);
 		return 1;
 	}
-
+	close(fd);
 	return 0;
 }
 
@@ -420,8 +360,10 @@ int stop_backdev(char *devname)
 	}
 	if (dprintf(fd, "%s\n", "1") < 0) {
 		fprintf(stderr, "Error stop back device %s\n", devname);
+		close(fd);
 		return 1;
 	}
+	close(fd);
 	return 0;
 }
 
@@ -436,9 +378,11 @@ int unregist_both(char *cset)
 		return 1;
 	}
 	if (dprintf(fd, "%d\n", 1) < 0) {
-		fprintf(stderr, "failed to stop cset and its backends %m");
+		fprintf(stderr, "Failed to stop cset and its backends %m");
+		close(fd);
 		return 1;
 	}
+	close(fd);
 	return 0;
 }
 
@@ -455,10 +399,11 @@ int attach(char *cset, char *devname)
 		return 1;
 	}
 	if (dprintf(fd, "%s\n", cset) < 0) {
-		fprintf(stderr, "failed to attache to cset %s\n", cset);
+		fprintf(stderr, "Failed to attache to cset %s\n", cset);
+		close(fd);
 		return 1;
 	}
-
+	close(fd);
 	return 0;
 }
 
@@ -477,9 +422,11 @@ int detach(char *devname)
 		return 1;
 	}
 	if (dprintf(fd, "%d\n", 1) < 0) {
+		close(fd);
 		fprintf(stderr, "Error detach device %s:%m", devname);
 		return 1;
 	}
+	close(fd);
 	return 0;
 }
 
@@ -500,8 +447,10 @@ int set_backdev_cachemode(char *devname, char *cachemode)
 	if (dprintf(fd, "%s\n", cachemode) < 0) {
 		printf("Failed to set cachemode for device %s:%m\n",
 		       devname);
+		close(fd);
 		return 1;
 	}
+	close(fd);
 	return 0;
 }
 
@@ -519,9 +468,10 @@ int get_backdev_cachemode(char *devname, char *mode)
 	}
 	printf("size in func is %d", sizeof(mode));
 	if (read(fd, mode, 100) < 0) {
-		fprintf(stderr, "failed to fetch device cache mode\n");
+		fprintf(stderr, "Failed to fetch device cache mode\n");
+		close(fd);
 		return 1;
 	}
-
+	close(fd);
 	return 0;
 }

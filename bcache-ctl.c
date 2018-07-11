@@ -16,6 +16,29 @@
 
 
 //utils function
+static bool accepted_char(char c)
+{
+	if ('0' <= c && c <= '9')
+		return true;
+	if ('A' <= c && c <= 'Z')
+		return true;
+	if ('a' <= c && c <= 'z')
+		return true;
+	if (strchr(".-_", c))
+		return true;
+	return false;
+}
+
+static void print_encode(char *in)
+{
+	char *pos;
+	for (pos = in; *pos; pos++)
+		if (accepted_char(*pos))
+			putchar(*pos);
+		else
+			printf("%%%x", *pos);
+}
+
 bool bad_uuid(char *uuid)
 {
 	const char *pattern =
@@ -24,7 +47,7 @@ bool bad_uuid(char *uuid)
 	int status;
 	regmatch_t regmatche;
 	if (regcomp(&reg, pattern, REG_EXTENDED) != 0) {
-		printf("error happen");
+		fprintf(stderr, "Error happen when check uuid format:%m");
 	}
 	status = regexec(&reg, uuid, 1, &regmatche, 0);
 	regfree(&reg);
@@ -42,7 +65,8 @@ bool bad_dev(char *devname)
 	int status;
 	regmatch_t regmatche;
 	if (regcomp(&reg, pattern, REG_EXTENDED) != 0) {
-		printf("error happen");
+		fprintf(stderr,
+			"Error happen when check device name format:%m");
 	}
 	status = regexec(&reg, devname, 1, &regmatche, 0);
 	regfree(&reg);
@@ -52,8 +76,6 @@ bool bad_dev(char *devname)
 		return false;
 	}
 }
-
-
 
 
 int ctlusage()
@@ -139,7 +161,7 @@ int show_bdevs_detail()
 
 	ret = list_bdevs(&head);
 	if (ret != 0) {
-		fprintf(stderr, "result  is non-zero:%d", ret);
+		fprintf(stderr, "Failed to list devices\n");
 		return ret;
 	}
 	printf
@@ -166,11 +188,7 @@ int show_bdevs_detail()
 			break;
 		}
 
-		printf("\t%s", devs->state);
-		if (strlen(devs->state) % 8 != 0) {
-			putchar('\t');
-		}
-
+		printf("\t%-8s", devs->state);
 		printf("\t%-16s", devs->bname);
 
 		char attachdev[30];
@@ -179,13 +197,12 @@ int show_bdevs_detail()
 		} else if (devs->version == BCACHE_SB_VERSION_CDEV
 			   || devs->version ==
 			   BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-			strcpy(attachdev, "N/A");
+			strcpy(attachdev, BCACHE_NO_SUPPORT);
 		} else {
-			strcpy(attachdev, "alone");
+			strcpy(attachdev, BCACHE_ATTACH_ALONE);
 		}
 		printf("%-16s", attachdev);
 
-		//TODU:adjust the distance between two lines
 		printf("%s", devs->attachuuid);
 		putchar('\n');
 	}
@@ -202,7 +219,7 @@ int show_bdevs()
 	int ret;
 	ret = list_bdevs(&head);
 	if (ret != 0) {
-		fprintf(stderr, "result is non-zero:%d", ret);
+		fprintf(stderr, "Failed to list devices\n");
 		return ret;
 	}
 
@@ -228,11 +245,7 @@ int show_bdevs()
 			break;
 		}
 
-		printf("\t%s", devs->state);
-		if (strlen(devs->state) % 8 != 0) {
-			putchar('\t');
-		}
-
+		printf("\t%-8s", devs->state);
 		printf("\t%-16s", devs->bname);
 
 		char attachdev[30];
@@ -241,9 +254,9 @@ int show_bdevs()
 		} else if (devs->version == BCACHE_SB_VERSION_CDEV
 			   || devs->version ==
 			   BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-			strcpy(attachdev, "N/A");
+			strcpy(attachdev, BCACHE_NO_SUPPORT);
 		} else {
-			strcpy(attachdev, "alone");
+			strcpy(attachdev, BCACHE_ATTACH_ALONE);
 		}
 		printf("%s", attachdev);
 		putchar('\n');
@@ -260,7 +273,7 @@ int detail(char *devname)
 	int ret;
 	ret = detail_dev(devname, &bd, &cd, &type);
 	if (ret != 0) {
-		fprintf(stderr, "failed to detail device\n", devname);
+		fprintf(stderr, "Failed to detail device\n", devname);
 		return ret;
 	}
 	if (type == BCACHE_SB_VERSION_BDEV) {
@@ -269,9 +282,15 @@ int detail(char *devname)
 		       bd.base.first_sector);
 		printf("sb.csum\t\t\t%" PRIX64 "\n", bd.base.csum);
 		printf("sb.version\t\t%" PRIu64, bd.base.version);
-		printf(" [backing device]");
+		printf(" [backing device]\n");
 		putchar('\n');
-		printf("dev.label\t\t%s\n", bd.base.label);
+		printf("dev.label\t\t");
+		if (*bd.base.label) {
+			print_encode(bd.base.label);
+		} else {
+			printf("(empty)");
+		}
+		putchar('\n');
 		printf("dev.uuid\t\t%s\n", bd.base.uuid);
 		printf("dev.sectors_per_block\t%u\n"
 		       "dev.sectors_per_bucket\t%u\n",
@@ -318,7 +337,6 @@ int detail(char *devname)
 		printf("cset.uuid\t\t%s\n", bd.base.cset);
 	} else if (type == BCACHE_SB_VERSION_CDEV
 		   || type == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-		printf("that is %s", cd.base.uuid);
 		printf("sb.magic\t\t%s\n", cd.base.magic);
 		printf("sb.first_sector\t\t%" PRIu64 "\n",
 		       cd.base.first_sector);
@@ -326,7 +344,13 @@ int detail(char *devname)
 		printf("sb.version\t\t%" PRIu64, cd.base.version);
 		printf(" [cache device]\n");
 		putchar('\n');
-		printf("dev.label\t\t%s\n", cd.base.label);
+		printf("dev.label\t\t");
+		if (*cd.base.label) {
+			print_encode(cd.base.label);
+		} else {
+			printf("(empty)");
+		}
+		putchar('\n');
 		printf("dev.uuid\t\t%s\n", cd.base.uuid);
 		printf("dev.sectors_per_block\t%u\n"
 		       "dev.sectors_per_bucket\t%u\n",
@@ -368,18 +392,17 @@ int detail(char *devname)
 int tree()
 {
 	struct list_head head;
-	struct list_head head1;
 	struct dev *devs, *tmp;
 	INIT_LIST_HEAD(&head);
 	int ret;
 	ret = list_bdevs(&head);
 	if (ret != 0) {
-		fprintf(stderr, "result is non-zero:%d", ret);
+		fprintf(stderr, "Failed to list devices\n");
 		return ret;
 	}
 	struct libscols_table *tb;
-	struct libscols_line *ln, *dad, *gdad;
-	enum { COL_NAME, COL_AGE };
+	struct libscols_line *dad, *son;
+	enum { COL_CSET, COL_BNAME };
 	setlocale(LC_ALL, "");
 	tb = scols_new_table();
 	scols_table_new_column(tb, ".", 0.1, SCOLS_FL_TREE);
@@ -387,17 +410,17 @@ int tree()
 	list_for_each_entry(devs, &head, dev_list) {
 		if ((devs->version == BCACHE_SB_VERSION_CDEV
 		     || devs->version == BCACHE_SB_VERSION_CDEV_WITH_UUID)
-		    && strcmp(devs->state, "active") == 0) {
-			ln = gdad = scols_table_new_line(tb, NULL);
-			scols_line_set_data(ln, COL_NAME, devs->name);
+		    && strcmp(devs->state, BCACHE_BASIC_STATE_ACTIVE) == 0) {
+			dad = scols_table_new_line(tb, NULL);
+			scols_line_set_data(dad, COL_CSET, devs->name);
 			list_for_each_entry(tmp, &head, dev_list) {
 				if (strcmp(devs->cset, tmp->attachuuid) ==
 				    0) {
-					ln = dad =
-					    scols_table_new_line(tb, gdad);
-					scols_line_set_data(ln, COL_NAME,
+					son =
+					    scols_table_new_line(tb, dad);
+					scols_line_set_data(son, COL_CSET,
 							    tmp->name);
-					scols_line_set_data(ln, COL_AGE,
+					scols_line_set_data(son, COL_BNAME,
 							    tmp->bname);
 				}
 			}
@@ -421,7 +444,7 @@ int attach_both(char *cdev, char *backdev)
 	}
 	if (type != BCACHE_SB_VERSION_BDEV
 	    && type != BCACHE_SB_VERSION_BDEV_WITH_OFFSET) {
-		fprintf(stderr, "%s is not an backend device", backdev);
+		fprintf(stderr, "%s is not an backend device\n", backdev);
 		return 1;
 	}
 	if (strcmp(bd.base.attachuuid, "alone") != 0) {
@@ -466,7 +489,6 @@ int main(int argc, char **argv)
 		int more = 0;
 		int device = 0;
 		int help = 0;
-		//      opterr = 0;
 
 		static struct option long_options[] = {
 			{"more", no_argument, 0, 'm'},
@@ -552,7 +574,7 @@ int main(int argc, char **argv)
 		if (bad_dev(argv[1]) && bad_uuid(argv[1])
 		    || bad_dev(argv[2])) {
 			fprintf(stderr,
-				"Error:Wrong device name or uuid found\n");
+				"Error:Wrong device name or cache_set uuid found\n");
 			return 1;
 		}
 		return attach_both(argv[1], argv[2]);

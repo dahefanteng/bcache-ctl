@@ -48,6 +48,12 @@ int set_backdev_cachemode(char *devname, char *cachemode);
 
 
 #define DEVLEN sizeof(struct dev)
+
+#define BCACHE_NO_SUPPORT			"N/A"
+
 #define BCACHE_BASIC_STATE_ACTIVE	"active"
 #define BCACHE_BASIC_STATE_INACTIVE	"inactive"
+
+#define BCACHE_ATTACH_ALONE		"Alone"
+#define BCACHE_BNAME_NOT_EXIST		"Non-Exist"
 #define DEV_PREFIX_LEN	5
