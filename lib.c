@@ -38,17 +38,6 @@ static void trim_tail(char *src, int n)
 	src[num - n] = '\0';
 }
 
-int get_state(struct dev *dev, char *state)
-{
-	if (dev->version == BCACHE_SB_VERSION_CDEV
-	    || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-		return get_cachedev_state(dev->cset, state);
-	} else if (dev->version == BCACHE_SB_VERSION_BDEV
-		   || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET) {
-		return get_backdev_state(dev->name, state);
-	}
-}
-
 
 int get_backdev_state(char *devname, char *state)
 {
@@ -86,17 +75,17 @@ int get_cachedev_state(char *cset_id, char *state)
 	return 0;
 }
 
-int get_bname(struct dev *dev, char *bname)
+int get_state(struct dev *dev, char *state)
 {
 	if (dev->version == BCACHE_SB_VERSION_CDEV
 	    || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-		strcpy(bname, BCACHE_NO_SUPPORT);
+		return get_cachedev_state(dev->cset, state);
 	} else if (dev->version == BCACHE_SB_VERSION_BDEV
 		   || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET) {
-		return get_dev_bname(dev->name, bname);
+		return get_backdev_state(dev->name, state);
 	}
-	return 0;
 }
+
 
 int get_dev_bname(char *devname, char *bname)
 {
@@ -116,14 +105,14 @@ int get_dev_bname(char *devname, char *bname)
 	return 0;
 }
 
-int get_point(struct dev *dev, char *point)
+int get_bname(struct dev *dev, char *bname)
 {
 	if (dev->version == BCACHE_SB_VERSION_CDEV
 	    || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
-		strcpy(point, BCACHE_NO_SUPPORT);
+		strcpy(bname, BCACHE_NO_SUPPORT);
 	} else if (dev->version == BCACHE_SB_VERSION_BDEV
 		   || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET) {
-		return get_backdev_attachpoint(dev->name, point);
+		return get_dev_bname(dev->name, bname);
 	}
 	return 0;
 }
@@ -148,6 +137,18 @@ int get_backdev_attachpoint(char *devname, char *point)
 	return 0;
 }
 
+int get_point(struct dev *dev, char *point)
+{
+	if (dev->version == BCACHE_SB_VERSION_CDEV
+	    || dev->version == BCACHE_SB_VERSION_CDEV_WITH_UUID) {
+		strcpy(point, BCACHE_NO_SUPPORT);
+	} else if (dev->version == BCACHE_SB_VERSION_BDEV
+		   || dev->version == BCACHE_SB_VERSION_BDEV_WITH_OFFSET) {
+		return get_backdev_attachpoint(dev->name, point);
+	}
+	return 0;
+}
+
 int cset_to_devname(struct list_head *head, char *cset, char *devname)
 {
 	struct dev *dev;
@@ -161,51 +162,6 @@ int cset_to_devname(struct list_head *head, char *cset, char *devname)
 	return 0;
 }
 
-
-int list_bdevs(struct list_head *head)
-{
-	DIR *dir;
-	struct dirent *ptr;
-	blkid_probe pr;
-	struct cache_sb sb;
-	dir = opendir("/sys/block");
-	if (dir == NULL) {
-		fprintf(stderr, "Unable to open dir /sys/block\n");
-		return 1;
-	}
-	while ((ptr = readdir(dir)) != NULL) {
-		if (strcmp(ptr->d_name, ".") == 0
-		    || strcmp(ptr->d_name, "..") == 0) {
-			continue;
-		}
-		char dev[20];
-		sprintf(dev, "/dev/%s", ptr->d_name);
-		int fd = open(dev, O_RDONLY);
-		if (fd == -1){
-			continue;
-		}
-
-		if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb)){
-			continue;
-		}
-		if (memcmp(sb.magic, bcache_magic, 16)){
-			continue;
-		}
-		struct dev *tmp, *current;
-		int ret;
-		tmp = (struct dev *) malloc(DEVLEN);
-		ret = detail_base(dev, sb, tmp);
-		if (ret != 0) {
-			fprintf(stderr,
-				"Failed to get information for %s\n", dev);
-			return 1;
-		} else {
-			list_add_tail(&tmp->dev_list, head);
-		}
-	}
-	closedir(dir);
-	return 0;
-}
 
 int detail_base(char *devname, struct cache_sb sb, struct dev *base)
 {
@@ -237,6 +193,53 @@ int detail_base(char *devname, struct cache_sb sb, struct dev *base)
 			devname);
 		return ret;
 	}
+	return 0;
+}
+
+int list_bdevs(struct list_head *head)
+{
+	DIR *dir;
+	struct dirent *ptr;
+	blkid_probe pr;
+	struct cache_sb sb;
+	dir = opendir("/sys/block");
+	if (dir == NULL) {
+		fprintf(stderr, "Unable to open dir /sys/block\n");
+		return 1;
+	}
+	while ((ptr = readdir(dir)) != NULL) {
+		if (strcmp(ptr->d_name, ".") == 0
+		    || strcmp(ptr->d_name, "..") == 0) {
+			continue;
+		}
+		char dev[20];
+		sprintf(dev, "/dev/%s", ptr->d_name);
+		int fd = open(dev, O_RDONLY);
+		if (fd == -1) {
+			continue;
+		}
+
+		if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb)) {
+			close(fd);
+			continue;
+		}
+		if (memcmp(sb.magic, bcache_magic, 16)) {
+			close(fd);
+			continue;
+		}
+		struct dev *tmp, *current;
+		int ret;
+		tmp = (struct dev *) malloc(DEVLEN);
+		ret = detail_base(dev, sb, tmp);
+		if (ret != 0) {
+			fprintf(stderr,
+				"Failed to get information for %s\n", dev);
+			return 1;
+		} else {
+			list_add_tail(&tmp->dev_list, head);
+		}
+	}
+	closedir(dir);
 	return 0;
 }
 

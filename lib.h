@@ -45,6 +45,7 @@ int unregist_cset(char *cset);
 int attach(char *cset, char *devname);
 int detach(char *devname);
 int set_backdev_cachemode(char *devname, char *cachemode);
+int cset_to_devname(struct list_head *head, char *cset, char *devname);
 
 
 #define DEVLEN sizeof(struct dev)
