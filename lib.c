@@ -171,6 +171,7 @@ int list_bdevs(struct list_head *head)
 	dir = opendir("/sys/block");
 	if (dir == NULL) {
 		fprintf(stderr, "Unable to open dir /sys/block\n");
+		return 1;
 	}
 	while ((ptr = readdir(dir)) != NULL) {
 		if (strcmp(ptr->d_name, ".") == 0
@@ -180,25 +181,16 @@ int list_bdevs(struct list_head *head)
 		char dev[20];
 		sprintf(dev, "/dev/%s", ptr->d_name);
 		int fd = open(dev, O_RDONLY);
-		if (fd == -1)
-			continue;
-		if (!(pr = blkid_new_probe()))
-			continue;
-		if (blkid_probe_set_device(pr, fd, 0, 0))
-			continue;
-		if (blkid_probe_enable_partitions(pr, true))
-			continue;
-		if (!blkid_do_probe(pr)) {
+		if (fd == -1){
 			continue;
 		}
 
-		if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb))
+		if (pread(fd, &sb, sizeof(sb), SB_START) != sizeof(sb)){
 			continue;
-
-		if (memcmp(sb.magic, bcache_magic, 16))
+		}
+		if (memcmp(sb.magic, bcache_magic, 16)){
 			continue;
-
-
+		}
 		struct dev *tmp, *current;
 		int ret;
 		tmp = (struct dev *) malloc(DEVLEN);

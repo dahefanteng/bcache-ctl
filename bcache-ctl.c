@@ -447,9 +447,9 @@ int attach_both(char *cdev, char *backdev)
 		fprintf(stderr, "%s is not an backend device\n", backdev);
 		return 1;
 	}
-	if (strcmp(bd.base.attachuuid, "alone") != 0) {
+	if (strcmp(bd.base.attachuuid, BCACHE_BNAME_NOT_EXIST) != 0) {
 		fprintf(stderr,
-			"this device have attached to another cset\n");
+			"This device have attached to another cset\n");
 		return 1;
 	}
 
