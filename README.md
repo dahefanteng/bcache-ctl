@@ -23,4 +23,14 @@ Integrate multi tools to a single one. Display the output in a more readable way
     ```
 
 # Usage: 
-      print 'bcache-ctl --help' to show how to use.
+    'bcache-ctl --help'
+      
+    Usage:bcache-ctl [SUBCMD]
+	show		show all bcache devices in this host
+	tree		show active bcache devices in this host
+	make		make regular device to bcache device
+	regist 		regist device to kernel
+	unregist	unregist device from kernel
+	attach		attach backend device(data device) to cache device
+	detach		detach backend device(data device) from cache device
+	set-cachemode	set cachemode for backend device
